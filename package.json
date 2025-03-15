@@ -7,7 +7,6 @@
     "start": "python run.py"
   },
   "engines": {
-    "node": ">=14.0.0",
-    "python": "3.9"
+    "node": "18.x"
   }
 } 
