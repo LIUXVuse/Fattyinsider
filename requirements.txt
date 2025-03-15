@@ -20,7 +20,6 @@ tqdm==4.66.1
 python-multipart==0.0.9
 jinja2==3.1.2
 
-pytest==7.4.0
 httpx==0.24.1
 
 numpy==1.24.3
@@ -29,6 +28,3 @@ PyYAML==6.0
 # 流式響應和異步支持
 aiohttp==3.8.5
 sse-starlette==1.6.5
-
-# 雲部署支持
-vercel==0.2.1
