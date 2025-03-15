@@ -1,0 +1,22 @@
+# 虚拟环境
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 本地开发文件
+.env
+.env.local
+.env.development
+.env.test
+
+# 本地数据目录（如果使用Pinecone，本地向量存储不需要上传）
+data/vector_store/
+
+# Git相关
+.git/
+.gitignore
+
+# 其他不需要的文件
+*.log
+.DS_Store 

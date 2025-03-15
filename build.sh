@@ -1,12 +1,15 @@
 #!/bin/bash
 
-# 安裝Python依賴
-python -m pip install -r requirements.txt
+# 显示Python版本
+python --version
 
-# 顯示已安裝的包
-python -m pip list
+# 安装Python依赖
+pip install -r requirements.txt
 
-# 確保目錄結構正確
+# 显示已安装的包
+pip list
+
+# 确保目录结构正确
 mkdir -p data/vector_store
 
-echo "構建完成！" 
+echo "构建完成！" 
