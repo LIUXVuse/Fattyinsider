@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fattyinsider AI 聊天機器人</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .chat-container {
+            height: calc(100vh - 200px);
+            overflow-y: auto;
+        }
+        .user-message {
+            background-color: #e2f3ff;
+            border-radius: 18px 18px 0 18px;
+        }
+        .assistant-message {
+            background-color: #f0f0f0;
+            border-radius: 18px 18px 18px 0;
+        }
+        .loading-indicator {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin: 10px 0;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-radius: 50%;
+            border-left-color: #3b82f6;
+            animation: spin 1s linear infinite;
+        }
+        .progress-bar {
+            width: 100%;
+            max-width: 300px;
+            height: 4px;
+            background-color: #f0f0f0;
+            margin-top: 10px;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background-color: #3b82f6;
+            width: 0%;
+            animation: progress 30s linear forwards;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        @keyframes progress {
+            0% { width: 0%; }
+            100% { width: 100%; }
+        }
+        .hidden {
+            display: none;
+        }
+        .typing-indicator {
+            display: inline-flex;
+            align-items: center;
+        }
+        .typing-indicator span {
+            height: 8px;
+            width: 8px;
+            background-color: #3b82f6;
+            border-radius: 50%;
+            margin: 0 2px;
+            display: inline-block;
+            animation: bounce 1.5s infinite ease-in-out;
+        }
+        .typing-indicator span:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        .typing-indicator span:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        @keyframes bounce {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-5px); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans">
+    <div class="container mx-auto p-4 max-w-4xl">
+        <header class="bg-blue-600 text-white p-4 rounded-t-lg shadow-md">
+            <h1 class="text-2xl font-bold">Fattyinsider AI 聊天機器人</h1>
+            <p class="text-sm">基於肥宅老司機播客內容的智能助手</p>
+        </header>
+
+        <div class="bg-white rounded-b-lg shadow-md p-4 mb-4">
+            <div id="chat-container" class="chat-container mb-4 p-2">
+                <div class="assistant-message p-3 mb-2 max-w-3xl">
+                    <p>你好！我是 Fattyinsider AI 助手，我可以回答關於肥宅老司機播客的問題。請問有什麼我可以幫助你的嗎？</p>
+                </div>
+            </div>
+
+            <div id="loading-indicator" class="loading-indicator hidden">
+                <div class="spinner"></div>
+                <p class="mt-2 text-gray-600">正在思考中，請稍候...</p>
+                <div class="progress-bar">
+                    <div class="progress-fill"></div>
+                </div>
+            </div>
+
+            <div class="flex">
+                <input id="user-input" type="text" placeholder="輸入你的問題..." 
+                    class="flex-grow p-2 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button id="send-button" class="bg-blue-600 text-white px-4 py-2 rounded-r-lg hover:bg-blue-700 focus:outline-none">
+                    發送
+                </button>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md p-4">
+            <h2 class="text-xl font-bold mb-2">搜索播客內容</h2>
+            <div class="flex mb-4">
+                <input id="search-input" type="text" placeholder="輸入搜索關鍵詞..." 
+                    class="flex-grow p-2 border border-gray-300 rounded-l-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button id="search-button" class="bg-green-600 text-white px-4 py-2 rounded-r-lg hover:bg-green-700 focus:outline-none">
+                    搜索
+                </button>
+            </div>
+            <div id="search-results" class="mt-2"></div>
+        </div>
+    </div>
+
+    <script>
+        const chatContainer = document.getElementById('chat-container');
+        const userInput = document.getElementById('user-input');
+        const sendButton = document.getElementById('send-button');
+        const searchInput = document.getElementById('search-input');
+        const searchButton = document.getElementById('search-button');
+        const searchResults = document.getElementById('search-results');
+        const loadingIndicator = document.getElementById('loading-indicator');
+
+        // 聊天歷史
+        let chatHistory = [];
+
+        // 顯示加載指示器
+        function showLoading() {
+            loadingIndicator.classList.remove('hidden');
+            document.querySelector('.progress-fill').style.animation = 'none';
+            void document.querySelector('.progress-fill').offsetWidth; // 觸發重繪
+            document.querySelector('.progress-fill').style.animation = 'progress 30s linear forwards';
+            
+            // 禁用輸入和按鈕
+            userInput.disabled = true;
+            sendButton.disabled = true;
+        }
+
+        // 隱藏加載指示器
+        function hideLoading() {
+            loadingIndicator.classList.add('hidden');
+            
+            // 啟用輸入和按鈕
+            userInput.disabled = false;
+            sendButton.disabled = false;
+            userInput.focus();
+        }
+
+        // 發送消息（普通模式）
+        function sendMessage() {
+            const message = userInput.value.trim();
+            if (!message) return;
+
+            // 添加用戶消息到聊天界面
+            addMessageToChat('user', message);
+            userInput.value = '';
+
+            // 更新聊天歷史
+            chatHistory.push({ role: 'user', content: message });
+
+            // 顯示加載指示器
+            showLoading();
+
+            // 創建一個臨時的助手消息，顯示正在輸入
+            const tempMessageId = 'temp-' + Date.now();
+            addTypingIndicator(tempMessageId);
+
+            // 發送請求到後端
+            fetch('/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    messages: chatHistory,
+                    stream: true
+                }),
+            })
+            .then(response => {
+                // 隱藏加載指示器
+                hideLoading();
+                
+                // 移除臨時消息
+                removeTypingIndicator(tempMessageId);
+                
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                
+                // 處理流式響應
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let assistantMessage = '';
+                
+                // 創建助手消息元素
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'assistant-message p-3 mb-2 max-w-3xl';
+                messageDiv.innerHTML = '<p></p>';
+                chatContainer.appendChild(messageDiv);
+                
+                function readStream() {
+                    return reader.read().then(({ done, value }) => {
+                        if (done) {
+                            // 更新聊天歷史
+                            chatHistory.push({ role: 'assistant', content: assistantMessage });
+                            return;
+                        }
+                        
+                        // 解碼並添加到消息
+                        const chunk = decoder.decode(value);
+                        assistantMessage += chunk;
+                        messageDiv.querySelector('p').textContent = assistantMessage;
+                        
+                        // 滾動到底部
+                        chatContainer.scrollTop = chatContainer.scrollHeight;
+                        
+                        // 繼續讀取流
+                        return readStream();
+                    });
+                }
+                
+                return readStream();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                hideLoading();
+                removeTypingIndicator(tempMessageId);
+                addMessageToChat('assistant', '抱歉，發生了錯誤，請稍後再試。');
+            });
+        }
+
+        // 添加正在輸入指示器
+        function addTypingIndicator(id) {
+            const messageDiv = document.createElement('div');
+            messageDiv.id = id;
+            messageDiv.className = 'assistant-message p-3 mb-2 max-w-3xl';
+            messageDiv.innerHTML = `
+                <div class="typing-indicator">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            `;
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // 移除正在輸入指示器
+        function removeTypingIndicator(id) {
+            const element = document.getElementById(id);
+            if (element) {
+                element.remove();
+            }
+        }
+
+        // 添加消息到聊天界面
+        function addMessageToChat(role, content) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = role === 'user' ? 'user-message p-3 mb-2 ml-auto max-w-3xl' : 'assistant-message p-3 mb-2 max-w-3xl';
+            messageDiv.innerHTML = `<p>${content}</p>`;
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // 搜索
+        function search() {
+            const query = searchInput.value.trim();
+            if (!query) return;
+
+            // 清空搜索結果
+            searchResults.innerHTML = '<div class="text-center py-2">正在搜索...</div>';
+
+            // 發送搜索請求
+            fetch(`/search/simple?q=${encodeURIComponent(query)}`)
+            .then(response => response.json())
+            .then(data => {
+                // 顯示搜索結果
+                displaySearchResults(data);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                searchResults.innerHTML = '<div class="text-red-500 py-2">搜索時發生錯誤，請稍後再試。</div>';
+            });
+        }
+
+        // 顯示搜索結果
+        function displaySearchResults(results) {
+            if (!results || results.length === 0) {
+                searchResults.innerHTML = '<div class="text-center py-2">沒有找到相關結果</div>';
+                return;
+            }
+
+            let resultsHtml = '<div class="space-y-3">';
+            results.forEach((result, index) => {
+                const source = result.metadata.source || '未知來源';
+                const score = (result.score * 100).toFixed(2);
+                resultsHtml += `
+                    <div class="border border-gray-200 rounded p-3">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="font-bold">${index + 1}. ${result.metadata.episode_id || '未知集數'}</span>
+                            <span class="text-sm text-gray-500">相關度: ${score}%</span>
+                        </div>
+                        <p class="text-sm mb-1">${result.text}</p>
+                        <p class="text-xs text-gray-500">來源: ${source}</p>
+                    </div>
+                `;
+            });
+            resultsHtml += '</div>';
+            searchResults.innerHTML = resultsHtml;
+        }
+
+        // 事件監聽器
+        sendButton.addEventListener('click', sendMessage);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+        searchButton.addEventListener('click', search);
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') search();
+        });
+    </script>
+</body>
+</html> 
