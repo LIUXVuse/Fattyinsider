@@ -10,9 +10,9 @@
     },
     {
       "src": "vercel_app.py",
-      "use": "@vercel/python",
+      "use": "@vercel/python@3.1.33",
       "config": {
-        "runtime": "python3.10",
+        "runtime": "python3.9",
         "maxLambdaSize": "15mb"
       }
     }
