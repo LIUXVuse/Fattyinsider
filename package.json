@@ -1,0 +1,12 @@
+{
+  "name": "fattyinsider-ai",
+  "version": "1.0.0",
+  "description": "肥宅老司機AI聊天機器人",
+  "scripts": {
+    "build": "bash vercel-build.sh",
+    "start": "python run.py"
+  },
+  "engines": {
+    "node": ">=14.0.0"
+  }
+} 

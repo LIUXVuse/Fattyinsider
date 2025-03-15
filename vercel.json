@@ -2,12 +2,18 @@
   "version": 2,
   "builds": [
     {
+      "src": "package.json",
+      "use": "@vercel/node",
+      "config": {
+        "buildCommand": "bash vercel-build.sh"
+      }
+    },
+    {
       "src": "vercel_app.py",
-      "use": "@vercel/python@4.0.1",
+      "use": "@vercel/python",
       "config": {
         "runtime": "python3.10",
-        "maxLambdaSize": "15mb",
-        "installCommand": "bash vercel-build.sh"
+        "maxLambdaSize": "15mb"
       }
     }
   ],
