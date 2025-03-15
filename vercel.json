@@ -20,6 +20,5 @@
     "APP_ENV": "production",
     "LOG_LEVEL": "info",
     "USE_PINECONE": "true"
-  },
-  "buildCommand": "pip install -r requirements.txt"
+  }
 } 
