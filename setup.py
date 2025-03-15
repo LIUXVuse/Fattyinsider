@@ -1,0 +1,29 @@
+from setuptools import setup, find_packages
+
+setup(
+    name="fattyinsider-ai",
+    version="1.0.0",
+    packages=find_packages(),
+    python_requires=">=3.9,<3.10",
+    install_requires=[
+        "fastapi==0.110.0",
+        "uvicorn==0.27.1",
+        "python-dotenv==1.0.1",
+        "pydantic==2.0.3",
+        "pydantic-settings==2.0.3",
+        "langchain==0.0.267",
+        "langchain-community==0.0.10",
+        "langchain-text-splitters==0.0.1",
+        "langchain-openai==0.0.2",
+        "openai==1.3.0",
+        "pinecone-client==2.2.2",
+        "loguru==0.7.0",
+        "tqdm==4.66.1",
+        "python-multipart==0.0.9",
+        "jinja2==3.1.2",
+        "httpx==0.24.1",
+        "pyyaml==6.0.1",
+        "aiohttp==3.8.5",
+        "sse-starlette==1.6.5",
+    ],
+) 
