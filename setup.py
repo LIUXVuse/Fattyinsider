@@ -22,7 +22,7 @@ setup(
         "python-multipart==0.0.9",
         "jinja2==3.1.2",
         "httpx==0.24.1",
-        "pyyaml==6.0.1",
+        "pyyaml==5.4.1",
         "aiohttp==3.8.5",
         "sse-starlette==1.6.5",
     ],
