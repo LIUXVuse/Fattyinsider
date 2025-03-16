@@ -15,7 +15,7 @@ setup(
         "langchain-community==0.0.10",
         "langchain-text-splitters==0.0.1",
         "langchain-openai==0.0.2",
-        "openai==1.3.0",
+        "openai>=1.6.1,<2.0.0",
         "pinecone-client==2.2.2",
         "loguru==0.7.0",
         "tqdm==4.66.1",
