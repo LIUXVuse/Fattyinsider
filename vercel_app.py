@@ -3,7 +3,6 @@ Vercel部署入口点 - 用于Vercel无服务器部署
 """
 import os
 import sys
-from dotenv import load_dotenv
 from loguru import logger
 
 # 配置日志 - 只使用stderr，避免文件系统操作
