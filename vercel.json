@@ -39,7 +39,13 @@
   },
   "git": {
     "deploymentEnabled": {
-      "master": true
+      "master": true,
+      "main": true
     }
+  },
+  "github": {
+    "enabled": true,
+    "silent": false,
+    "autoAlias": true
   }
 } 
