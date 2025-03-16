@@ -25,3 +25,6 @@ pyyaml==5.4.1
 # 流式响应和异步支持
 aiohttp==3.8.5
 sse-starlette==1.6.5
+
+# 向量嵌入模型
+sentence-transformers>=2.2.2
