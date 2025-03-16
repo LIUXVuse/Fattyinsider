@@ -1,5 +1,5 @@
 """
-Vercel部署入口点 - 使用标准库实现LLM调用
+Vercel部署入口点 - 使用标准库实现LLM调用，优化超时处理
 """
 import os
 import sys
@@ -7,6 +7,7 @@ import json
 import logging
 import urllib.request
 import urllib.error
+import socket
 from http.server import BaseHTTPRequestHandler
 
 # 配置日志
@@ -19,7 +20,7 @@ logger = logging.getLogger("vercel_app")
 
 # 调用DeepSeek API生成回复
 def generate_chat_response(messages):
-    """使用标准库调用DeepSeek API"""
+    """使用标准库调用DeepSeek API，优化超时处理"""
     try:
         # 获取API密钥
         api_key = os.environ.get("DEEPSEEK_API_KEY", "")
@@ -27,12 +28,20 @@ def generate_chat_response(messages):
             logger.error("未设置DEEPSEEK_API_KEY环境变量")
             return "抱歉，系统未配置API密钥，无法连接到DeepSeek模型。"
         
+        # 优化消息历史，只保留最近的几条消息
+        if len(messages) > 4:
+            # 保留第一条系统消息（如果有）和最近的3条对话
+            system_messages = [msg for msg in messages if msg.get('role') == 'system']
+            recent_messages = messages[-3:]
+            messages = system_messages + recent_messages
+            logger.info(f"消息历史过长，已优化为{len(messages)}条消息")
+        
         # 准备请求数据
         request_data = {
             "model": "deepseek-ai/DeepSeek-R1",
             "messages": messages,
             "temperature": 0.7,
-            "max_tokens": 1000,
+            "max_tokens": 500,  # 减少生成的token数量
             "stream": False
         }
         
@@ -47,8 +56,11 @@ def generate_chat_response(messages):
             method="POST"
         )
         
+        # 设置更短的超时时间
+        socket.setdefaulttimeout(8)  # 设置8秒超时，留2秒处理时间
+        
         # 发送请求
-        with urllib.request.urlopen(req, timeout=30) as response:
+        with urllib.request.urlopen(req) as response:
             response_data = json.loads(response.read().decode('utf-8'))
             
             # 提取回复内容
@@ -62,6 +74,10 @@ def generate_chat_response(messages):
     except urllib.error.HTTPError as e:
         logger.error(f"HTTP错误: {e.code} {e.reason}")
         return f"抱歉，调用DeepSeek API时出错: HTTP {e.code}"
+    
+    except socket.timeout:
+        logger.error("API请求超时")
+        return "抱歉，API请求超时。Vercel的函数执行时间有限制，请尝试发送更简短的消息。"
     
     except Exception as e:
         logger.error(f"生成回复时出错: {str(e)}")
@@ -134,6 +150,14 @@ HTML_TEMPLATE = """
             font-style: italic;
             margin-top: 10px;
         }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
     </style>
 </head>
 <body>
@@ -150,6 +174,7 @@ HTML_TEMPLATE = """
         </div>
         
         <div class="status" id="status"></div>
+        <div class="warning">注意：由於Vercel函數執行時間限制，請保持問題簡短，避免複雜長問題導致超時。</div>
     </div>
 
     <script>
@@ -183,6 +208,10 @@ HTML_TEMPLATE = """
                 statusElement.textContent = '機器人正在思考...';
                 
                 try {
+                    // 设置超时
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 9500);
+                    
                     // 发送请求到API
                     const response = await fetch('/api/chat', {
                         method: 'POST',
@@ -191,8 +220,11 @@ HTML_TEMPLATE = """
                         },
                         body: JSON.stringify({
                             messages: messageHistory
-                        })
+                        }),
+                        signal: controller.signal
                     });
+                    
+                    clearTimeout(timeoutId);
                     
                     if (!response.ok) {
                         throw new Error(`HTTP error! status: ${response.status}`);
@@ -210,7 +242,7 @@ HTML_TEMPLATE = """
                     messageHistory.push({ role: 'assistant', content: data.content });
                     
                     // 如果历史记录太长，删除最早的消息
-                    if (messageHistory.length > 10) {
+                    if (messageHistory.length > 6) {
                         messageHistory.splice(0, 2);
                     }
                     
@@ -218,12 +250,20 @@ HTML_TEMPLATE = """
                     statusElement.textContent = '';
                 } catch (error) {
                     console.error('Error:', error);
-                    statusElement.textContent = '發生錯誤，請稍後再試';
+                    
+                    let errorMessage = '抱歉，我遇到了一些問題，請稍後再試。';
+                    
+                    if (error.name === 'AbortError') {
+                        errorMessage = '抱歉，請求超時。請嘗試發送更簡短的消息。';
+                        statusElement.textContent = '請求超時';
+                    } else {
+                        statusElement.textContent = '發生錯誤';
+                    }
                     
                     // 添加错误消息
                     const botDiv = document.createElement('div');
                     botDiv.className = 'message bot';
-                    botDiv.textContent = '抱歉，我遇到了一些問題，請稍後再試。';
+                    botDiv.textContent = errorMessage;
                     chat.appendChild(botDiv);
                 }
                 
