@@ -1,3 +1,1 @@
-fastapi==0.110.0
-uvicorn==0.27.1
-pydantic==2.0.3 
+# 不需要任何外部依赖 
