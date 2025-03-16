@@ -26,5 +26,6 @@ pyyaml==5.4.1
 aiohttp==3.8.5
 sse-starlette==1.6.5
 
-# 向量嵌入模型
-sentence-transformers>=2.2.2
+# 向量嵌入模型 - 使用更轻量级的替代方案
+transformers>=4.37.2
+torch>=2.2.0
