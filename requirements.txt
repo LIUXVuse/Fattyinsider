@@ -5,7 +5,8 @@ pydantic==2.0.3
 pydantic-settings==2.0.3
 
 # 只保留必要的LangChain组件，让pip自动解决依赖
-langchain>=0.0.310
+langchain>=0.1.0
+langchain-community>=0.0.10
 langchain-openai>=0.0.2
 openai>=1.6.1,<2.0.0
 
