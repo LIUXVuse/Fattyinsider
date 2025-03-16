@@ -25,13 +25,30 @@ if os.environ.get("VERCEL") == "1":
 else:
     logger.info(f"运行在环境: {os.environ.get('APP_ENV', 'development')}")
 
-# 导入LLM服务
-try:
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from app.services.llm_service import generate_chat_response, generate_stream_response
-    logger.info("成功导入LLM服务")
-except Exception as e:
-    logger.error(f"导入LLM服务失败: {str(e)}")
+# 定义LLM服务函数
+async def generate_chat_response(messages, stream=False, temperature=0.7, max_tokens=1000):
+    """
+    生成聊天回复的简化版本，直接在vercel_app.py中实现
+    """
+    try:
+        # 记录请求
+        logger.info(f"处理聊天请求，消息数: {len(messages)}")
+        
+        # 简单的回复逻辑
+        user_message = messages[0]["content"] if messages else ""
+        
+        # 返回响应
+        return {
+            "content": f"你好！我收到了你的消息：\"{user_message}\"。我是肥宅老司機AI聊天機器人，目前正在测试阶段。",
+            "role": "assistant"
+        }
+            
+    except Exception as e:
+        logger.error(f"生成回复时出错: {str(e)}")
+        return {
+            "content": f"抱歉，我遇到了一些问题: {str(e)}",
+            "role": "assistant"
+        }
 
 # HTML页面模板
 HTML_TEMPLATE = """
