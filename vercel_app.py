@@ -59,8 +59,8 @@ def generate_chat_response(messages):
             method="POST"
         )
         
-        # 设置更短的超时时间
-        socket.setdefaulttimeout(6)  # 设置6秒超时，留4秒处理时间
+        # 设置更长的超时时间
+        socket.setdefaulttimeout(10)  # 设置10秒超时
         
         # 发送请求
         with urllib.request.urlopen(req) as response:
@@ -91,7 +91,7 @@ def generate_chat_response(messages):
             return f"抱歉，调用DeepSeek API时出错: HTTP {e.code}"
     
     except socket.timeout:
-        logger.error("API请求超时")
+        logger.error("API请求超时（10秒）")
         return "抱歉，API请求超时。请尝试发送更简短的消息，或者稍后再试。"
     
     except Exception as e:
@@ -213,7 +213,7 @@ HTML_TEMPLATE = """
         
         <div class="status" id="status"></div>
         <button class="clear-button" id="clear-button">清空對話</button>
-        <div class="warning">注意：由於Vercel函數執行時間限制，請保持問題簡短，避免複雜長問題導致超時。每次對話僅保留最近2條消息。</div>
+        <div class="warning">注意：由於Vercel函數執行時間限制，請保持問題簡短，避免複雜長問題導致超時。每次對話僅保留最近2條消息。回應時間最長為10秒。</div>
         <div class="model-info">使用 DeepSeek V3 模型提供服務</div>
     </div>
 
@@ -261,7 +261,7 @@ HTML_TEMPLATE = """
                 try {
                     // 设置超时
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 8000);
+                    const timeoutId = setTimeout(() => controller.abort(), 12000);
                     
                     // 发送请求到API
                     const response = await fetch('/api/chat', {
