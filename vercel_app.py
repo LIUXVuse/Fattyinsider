@@ -1,11 +1,13 @@
 """
-Vercel部署入口点 - 极简版，不使用任何外部依赖
+Vercel部署入口点 - 集成LLM和向量数据库
 """
 import os
 import sys
 import json
 import logging
+import asyncio
 from http.server import BaseHTTPRequestHandler
+from urllib.parse import parse_qs, urlparse
 
 # 配置日志
 logging.basicConfig(
@@ -22,6 +24,14 @@ if os.environ.get("VERCEL") == "1":
     logger.info("运行在Vercel生产环境中")
 else:
     logger.info(f"运行在环境: {os.environ.get('APP_ENV', 'development')}")
+
+# 导入LLM服务
+try:
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from app.services.llm_service import generate_chat_response, generate_stream_response
+    logger.info("成功导入LLM服务")
+except Exception as e:
+    logger.error(f"导入LLM服务失败: {str(e)}")
 
 # HTML页面模板
 HTML_TEMPLATE = """
@@ -134,7 +144,7 @@ HTML_TEMPLATE = """
     
     <div class="footer">
         <p>© 2025 肥宅老司機 AI 聊天機器人 | 版本 0.1.0</p>
-        <p>目前處於簡易模式，完整功能即將推出</p>
+        <p>已連接到DeepSeek R1模型</p>
     </div>
 
     <script>
@@ -144,27 +154,47 @@ HTML_TEMPLATE = """
             const sendButton = document.getElementById('send-button');
             const statusElement = document.getElementById('status');
             
-            // 發送訊息函數
-            function sendMessage() {
+            // 发送消息函数
+            async function sendMessage() {
                 const message = messageInput.value.trim();
                 if (message === '') return;
                 
-                // 添加用戶訊息到聊天窗口
+                // 添加用户消息到聊天窗口
                 addMessage(message, 'user');
                 messageInput.value = '';
                 
-                // 顯示狀態
+                // 显示状态
                 statusElement.textContent = '機器人正在思考...';
                 
-                // 模擬回應（目前是簡易模式）
-                setTimeout(() => {
-                    const response = "目前我處於簡易模式，無法提供完整的回應功能。完整版即將推出，敬請期待！";
-                    addMessage(response, 'bot');
+                try {
+                    // 发送请求到API
+                    const response = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            messages: [
+                                { role: 'user', content: message }
+                            ]
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error('API请求失败');
+                    }
+                    
+                    const data = await response.json();
+                    addMessage(data.content, 'bot');
+                } catch (error) {
+                    console.error('发送消息失败:', error);
+                    addMessage('抱歉，我遇到了一些问题，无法回应你的问题。', 'bot');
+                } finally {
                     statusElement.textContent = '';
-                }, 1000);
+                }
             }
             
-            // 添加訊息到聊天窗口
+            // 添加消息到聊天窗口
             function addMessage(text, sender) {
                 const messageElement = document.createElement('div');
                 messageElement.classList.add('message');
@@ -175,7 +205,7 @@ HTML_TEMPLATE = """
                 chatMessages.scrollTop = chatMessages.scrollHeight;
             }
             
-            // 事件監聽器
+            // 事件监听器
             sendButton.addEventListener('click', sendMessage);
             messageInput.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') {
@@ -230,6 +260,52 @@ class handler(BaseHTTPRequestHandler):
             
         except Exception as e:
             logger.error(f"请求处理错误: {str(e)}")
+            self.send_response(500)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            
+            error_response = {
+                "error": str(e),
+                "status": "error"
+            }
+            self.wfile.write(json.dumps(error_response).encode('utf-8'))
+    
+    def do_POST(self):
+        """处理POST请求"""
+        try:
+            # 聊天API端点
+            if self.path == "/api/chat":
+                # 读取请求体
+                content_length = int(self.headers['Content-Length'])
+                post_data = self.rfile.read(content_length).decode('utf-8')
+                request_data = json.loads(post_data)
+                
+                # 获取消息
+                messages = request_data.get('messages', [])
+                
+                # 调用LLM服务
+                response = asyncio.run(generate_chat_response(messages))
+                
+                # 返回响应
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(response).encode('utf-8'))
+                return
+            
+            # 未找到API端点
+            self.send_response(404)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            
+            error_response = {
+                "error": "API端点不存在",
+                "status": "error"
+            }
+            self.wfile.write(json.dumps(error_response).encode('utf-8'))
+            
+        except Exception as e:
+            logger.error(f"API请求处理错误: {str(e)}")
             self.send_response(500)
             self.send_header('Content-type', 'application/json')
             self.end_headers()
