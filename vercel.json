@@ -49,6 +49,5 @@
     "autoAlias": true
   },
   "public": true,
-  "cleanUrls": true,
-  "forceNew": true
+  "cleanUrls": true
 } 
