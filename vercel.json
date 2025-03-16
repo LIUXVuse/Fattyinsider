@@ -17,7 +17,12 @@
     },
     {
       "src": "/(.*)",
-      "dest": "vercel_app.py"
+      "dest": "vercel_app.py",
+      "headers": {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "X-Requested-With, Content-Type, Accept"
+      }
     }
   ],
   "env": {
@@ -25,5 +30,11 @@
     "LOG_LEVEL": "info",
     "USE_PINECONE": "true"
   },
-  "buildCommand": "bash vercel-build.sh"
+  "buildCommand": "bash vercel-build.sh",
+  "functions": {
+    "vercel_app.py": {
+      "memory": 1024,
+      "maxDuration": 10
+    }
+  }
 } 
