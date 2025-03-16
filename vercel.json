@@ -2,19 +2,24 @@
   "version": 2,
   "builds": [
     {
-      "src": "Dockerfile",
-      "use": "@vercel/docker"
+      "src": "vercel_app.py",
+      "use": "@vercel/python",
+      "config": {
+        "maxLambdaSize": "50mb",
+        "runtime": "python3.9"
+      }
     }
   ],
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/"
+      "dest": "vercel_app.py"
     }
   ],
   "env": {
     "APP_ENV": "production",
     "LOG_LEVEL": "info",
     "USE_PINECONE": "true"
-  }
+  },
+  "buildCommand": "bash vercel-build.sh"
 } 

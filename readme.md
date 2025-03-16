@@ -97,79 +97,85 @@ llm = ChatOpenAI(
 - Pinecone (雲端向量存儲)
 - 文件系統 (文本存儲)
 
-## 部署指南
+## Vercel部署指南
 
-### 本地部署
+本项目支持使用Vercel进行部署。由于Vercel目前不支持公开的Docker部署，我们使用标准的Python运行时进行部署。
 
-1. 克隆專案
-```bash
-git clone https://github.com/yourusername/fattyinsider-ai.git
-cd fattyinsider-ai
-```
+### 部署步骤
 
-2. 創建虛擬環境
-```bash
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-venv\Scripts\activate  # Windows
-```
+1. **Fork或克隆项目到GitHub**
+   ```bash
+   git clone https://github.com/yourusername/fattyinsider-ai.git
+   cd fattyinsider-ai
+   ```
 
-3. 安裝依賴
-```bash
-pip install -r requirements.txt
-```
+2. **推送代码到GitHub**
+   ```bash
+   git add .
+   git commit -m "Prepare for Vercel deployment"
+   git push origin master
+   ```
 
-4. 環境配置
-```env
-# API密鑰
-DEEPSEEK_API_KEY=your-api-key
-PINECONE_API_KEY=your-pinecone-api-key  # 如果使用Pinecone
+3. **在Vercel上创建新项目**
+   - 登录Vercel账户
+   - 点击"New Project"
+   - 选择你的GitHub仓库
+   - 配置项目设置
 
-# 向量數據庫配置
-PINECONE_INDEX_NAME=fattyinsider-index  # 如果使用Pinecone
+4. **配置环境变量**
+   在Vercel项目设置中，添加以下环境变量：
+   - `DEEPSEEK_API_KEY`: SiliconFlow API密钥
+   - `PINECONE_API_KEY`: Pinecone API密钥（如果使用Pinecone）
+   - `PINECONE_INDEX_NAME`: Pinecone索引名称（如果使用Pinecone）
+   - `APP_ENV`: 设置为`production`
+   - `USE_PINECONE`: 设置为`true`（如果使用Pinecone）
 
-# 應用配置
-APP_ENV=development  # development, production
-LOG_LEVEL=info  # debug, info, warning, error
-```
+5. **部署项目**
+   - 点击"Deploy"按钮
+   - Vercel会自动识别`vercel.json`和`vercel_app.py`
+   - 构建过程会执行`vercel-build.sh`脚本
 
-5. 加載數據
-```bash
-# 使用本地FAISS
-python load_data.py
+6. **数据迁移**
+   - 在本地运行`python migrate_to_pinecone.py`将数据迁移到Pinecone
 
-# 或遷移到Pinecone
-python migrate_to_pinecone.py
-```
+### 使用Vercel CLI部署
 
-6. 運行應用
-```bash
-python run.py
-```
+如果你想使用命令行部署，可以按照以下步骤操作：
 
-7. 訪問應用
-```
-http://localhost:8000
-```
+1. **安装Vercel CLI**
+   ```bash
+   npm install -g vercel
+   ```
 
-### Vercel部署
+2. **登录Vercel**
+   ```bash
+   vercel login
+   ```
 
-1. Fork或克隆專案到GitHub
+3. **部署项目**
+   ```bash
+   vercel --prod
+   ```
 
-2. 在Vercel上創建新項目
-   - 連接GitHub倉庫
-   - 設置環境變量：
-     - `DEEPSEEK_API_KEY`
-     - `PINECONE_API_KEY`
-     - `PINECONE_INDEX_NAME`
-     - `APP_ENV=production`
-     - `USE_PINECONE=true`
+### 故障排除
 
-3. 部署項目
-   - Vercel會自動識別`vercel.json`和`vercel_app.py`
+如果遇到部署问题，请检查：
 
-4. 數據遷移
-   - 在本地運行`python migrate_to_pinecone.py`將數據遷移到Pinecone
+1. **依赖冲突**：
+   - 检查`requirements.txt`中的依赖版本是否兼容
+   - 查看Vercel构建日志中的错误信息
+
+2. **环境变量**：
+   - 确保所有必要的环境变量都已正确设置
+   - 检查API密钥是否有效
+
+3. **构建脚本**：
+   - 检查`vercel-build.sh`脚本是否有执行权限
+   - 确保脚本中的命令在Vercel环境中可以正常运行
+
+4. **资源限制**：
+   - Vercel有一定的资源限制，确保你的应用不会超出这些限制
+   - 如果应用较大，可以考虑增加`maxLambdaSize`设置
 
 ## API使用指南
 
