@@ -29,20 +29,23 @@ def generate_chat_response(messages):
             return "抱歉，系统未配置API密钥，无法连接到DeepSeek模型。"
         
         # 优化消息历史，只保留最近的几条消息
-        if len(messages) > 4:
-            # 保留第一条系统消息（如果有）和最近的3条对话
+        if len(messages) > 3:
+            # 保留第一条系统消息（如果有）和最近的2条对话
             system_messages = [msg for msg in messages if msg.get('role') == 'system']
-            recent_messages = messages[-3:]
+            recent_messages = messages[-2:]
             messages = system_messages + recent_messages
             logger.info(f"消息历史过长，已优化为{len(messages)}条消息")
         
         # 准备请求数据 - 使用DeepSeek V3模型
         request_data = {
-            "model": "deepseek-ai/DeepSeek-V3",  # 修正模型名称，注意大小写
+            "model": "deepseek-ai/DeepSeek-V3",  # 确保模型名称正确
             "messages": messages,
-            "temperature": 0.5,  # 降低温度以加快响应
-            "max_tokens": 300,   # 进一步减少token数量
-            "stream": False
+            "temperature": 0.3,  # 进一步降低温度以加快响应
+            "max_tokens": 200,   # 减少token数量以加快响应
+            "top_p": 0.5,        # 添加top_p参数控制输出多样性
+            "top_k": 30,         # 添加top_k参数限制候选词数量
+            "frequency_penalty": 0.5, # 添加频率惩罚减少重复
+            "stream": False      # 不使用流式输出，因为标准库不易处理
         }
         
         # 创建请求
@@ -57,7 +60,7 @@ def generate_chat_response(messages):
         )
         
         # 设置更短的超时时间
-        socket.setdefaulttimeout(7)  # 设置7秒超时，留3秒处理时间
+        socket.setdefaulttimeout(6)  # 设置6秒超时，留4秒处理时间
         
         # 发送请求
         with urllib.request.urlopen(req) as response:
@@ -66,6 +69,10 @@ def generate_chat_response(messages):
             # 提取回复内容
             if "choices" in response_data and len(response_data["choices"]) > 0:
                 content = response_data["choices"][0]["message"]["content"]
+                # 记录token使用情况
+                if "usage" in response_data:
+                    usage = response_data["usage"]
+                    logger.info(f"Token使用情况: 提示词={usage.get('prompt_tokens', 0)}, 回复={usage.get('completion_tokens', 0)}, 总计={usage.get('total_tokens', 0)}")
                 return content
             else:
                 logger.error(f"DeepSeek API响应格式错误: {response_data}")
@@ -77,13 +84,15 @@ def generate_chat_response(messages):
         try:
             error_body = e.read().decode('utf-8')
             logger.error(f"错误详情: {error_body}")
-            return f"抱歉，调用DeepSeek API时出错: HTTP {e.code}，错误详情: {error_body}"
+            error_json = json.loads(error_body)
+            error_message = error_json.get("message", "未知错误")
+            return f"抱歉，调用DeepSeek API时出错: {error_message}"
         except:
             return f"抱歉，调用DeepSeek API时出错: HTTP {e.code}"
     
     except socket.timeout:
         logger.error("API请求超时")
-        return "抱歉，API请求超时。Vercel的函数执行时间有限制，请尝试发送更简短的消息。"
+        return "抱歉，API请求超时。请尝试发送更简短的消息，或者稍后再试。"
     
     except Exception as e:
         logger.error(f"生成回复时出错: {str(e)}")
@@ -123,13 +132,16 @@ HTML_TEMPLATE = """
             margin-bottom: 10px;
             padding: 10px;
             border-radius: 5px;
+            word-wrap: break-word;
         }
         .user {
             background-color: #dcf8c6;
             text-align: right;
+            margin-left: 20%;
         }
         .bot {
             background-color: #e5e5ea;
+            margin-right: 20%;
         }
         .input-area {
             display: flex;
@@ -149,6 +161,10 @@ HTML_TEMPLATE = """
             border-radius: 5px;
             margin-left: 10px;
             cursor: pointer;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
         }
         .status {
             text-align: center;
@@ -170,6 +186,16 @@ HTML_TEMPLATE = """
             font-size: 0.8em;
             margin-top: 5px;
         }
+        .clear-button {
+            display: block;
+            margin: 10px auto;
+            padding: 5px 10px;
+            background-color: #f8f9fa;
+            color: #666;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -186,7 +212,8 @@ HTML_TEMPLATE = """
         </div>
         
         <div class="status" id="status"></div>
-        <div class="warning">注意：由於Vercel函數執行時間限制，請保持問題簡短，避免複雜長問題導致超時。</div>
+        <button class="clear-button" id="clear-button">清空對話</button>
+        <div class="warning">注意：由於Vercel函數執行時間限制，請保持問題簡短，避免複雜長問題導致超時。每次對話僅保留最近2條消息。</div>
         <div class="model-info">使用 DeepSeek V3 模型提供服務</div>
     </div>
 
@@ -195,15 +222,26 @@ HTML_TEMPLATE = """
             const chat = document.getElementById('chat');
             const userInput = document.getElementById('user-input');
             const sendButton = document.getElementById('send-button');
+            const clearButton = document.getElementById('clear-button');
             const statusElement = document.getElementById('status');
             
             // 保存对话历史
             const messageHistory = [];
             
+            // 初始化时添加系统消息
+            messageHistory.push({
+                role: 'system',
+                content: '你是肥宅老司機AI聊天機器人，一個友好、幽默的助手。請提供簡短、準確的回答。'
+            });
+            
             // 发送消息函数
             async function sendMessage() {
                 const message = userInput.value.trim();
                 if (message === '') return;
+                
+                // 禁用输入和按钮
+                userInput.disabled = true;
+                sendButton.disabled = true;
                 
                 // 添加用户消息
                 const userDiv = document.createElement('div');
@@ -223,7 +261,7 @@ HTML_TEMPLATE = """
                 try {
                     // 设置超时
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 8500);
+                    const timeoutId = setTimeout(() => controller.abort(), 8000);
                     
                     // 发送请求到API
                     const response = await fetch('/api/chat', {
@@ -254,9 +292,17 @@ HTML_TEMPLATE = """
                     // 添加到历史记录
                     messageHistory.push({ role: 'assistant', content: data.content });
                     
-                    // 如果历史记录太长，删除最早的消息
-                    if (messageHistory.length > 4) {
-                        messageHistory.splice(0, 2);
+                    // 如果历史记录太长，删除最早的非系统消息
+                    if (messageHistory.length > 5) { // 保留1个系统消息和4个对话消息
+                        const systemMessages = messageHistory.filter(msg => msg.role === 'system');
+                        const nonSystemMessages = messageHistory.filter(msg => msg.role !== 'system');
+                        
+                        while (nonSystemMessages.length > 4) {
+                            nonSystemMessages.shift();
+                        }
+                        
+                        messageHistory.length = 0;
+                        messageHistory.push(...systemMessages, ...nonSystemMessages);
                     }
                     
                     // 清除状态
@@ -278,14 +324,36 @@ HTML_TEMPLATE = """
                     botDiv.className = 'message bot';
                     botDiv.textContent = errorMessage;
                     chat.appendChild(botDiv);
+                } finally {
+                    // 重新启用输入和按钮
+                    userInput.disabled = false;
+                    sendButton.disabled = false;
+                    userInput.focus();
                 }
                 
                 // 滚动到底部
                 chat.scrollTop = chat.scrollHeight;
             }
             
+            // 清空对话历史
+            function clearChat() {
+                // 保留系统消息
+                const systemMessages = messageHistory.filter(msg => msg.role === 'system');
+                messageHistory.length = 0;
+                messageHistory.push(...systemMessages);
+                
+                // 清空聊天界面，只保留欢迎消息
+                chat.innerHTML = '<div class="message bot">你好！我是肥宅老司機 AI 聊天機器人。有什麼我能幫你的嗎？</div>';
+                
+                // 清除状态
+                statusElement.textContent = '';
+            }
+            
             // 发送按钮点击事件
             sendButton.addEventListener('click', sendMessage);
+            
+            // 清空按钮点击事件
+            clearButton.addEventListener('click', clearChat);
             
             // 输入框回车事件
             userInput.addEventListener('keypress', function(e) {
@@ -293,6 +361,9 @@ HTML_TEMPLATE = """
                     sendMessage();
                 }
             });
+            
+            // 自动聚焦输入框
+            userInput.focus();
         });
     </script>
 </body>
