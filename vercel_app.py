@@ -36,12 +36,12 @@ def generate_chat_response(messages):
             messages = system_messages + recent_messages
             logger.info(f"消息历史过长，已优化为{len(messages)}条消息")
         
-        # 准备请求数据
+        # 准备请求数据 - 使用DeepSeek V3模型
         request_data = {
-            "model": "deepseek-ai/DeepSeek-R1",
+            "model": "deepseek-ai/deepseek-v3",  # 改用DeepSeek V3模型
             "messages": messages,
-            "temperature": 0.7,
-            "max_tokens": 500,  # 减少生成的token数量
+            "temperature": 0.5,  # 降低温度以加快响应
+            "max_tokens": 300,   # 进一步减少token数量
             "stream": False
         }
         
@@ -57,7 +57,7 @@ def generate_chat_response(messages):
         )
         
         # 设置更短的超时时间
-        socket.setdefaulttimeout(8)  # 设置8秒超时，留2秒处理时间
+        socket.setdefaulttimeout(7)  # 设置7秒超时，留3秒处理时间
         
         # 发送请求
         with urllib.request.urlopen(req) as response:
@@ -158,6 +158,12 @@ HTML_TEMPLATE = """
             margin-top: 10px;
             font-size: 0.9em;
         }
+        .model-info {
+            text-align: center;
+            color: #666;
+            font-size: 0.8em;
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -175,6 +181,7 @@ HTML_TEMPLATE = """
         
         <div class="status" id="status"></div>
         <div class="warning">注意：由於Vercel函數執行時間限制，請保持問題簡短，避免複雜長問題導致超時。</div>
+        <div class="model-info">使用 DeepSeek V3 模型提供服務</div>
     </div>
 
     <script>
@@ -210,7 +217,7 @@ HTML_TEMPLATE = """
                 try {
                     // 设置超时
                     const controller = new AbortController();
-                    const timeoutId = setTimeout(() => controller.abort(), 9500);
+                    const timeoutId = setTimeout(() => controller.abort(), 8500);
                     
                     // 发送请求到API
                     const response = await fetch('/api/chat', {
@@ -242,7 +249,7 @@ HTML_TEMPLATE = """
                     messageHistory.push({ role: 'assistant', content: data.content });
                     
                     // 如果历史记录太长，删除最早的消息
-                    if (messageHistory.length > 6) {
+                    if (messageHistory.length > 4) {
                         messageHistory.splice(0, 2);
                     }
                     
