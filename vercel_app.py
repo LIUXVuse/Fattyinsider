@@ -1,10 +1,12 @@
 """
-Vercel部署入口点 - 简化版本，不使用外部依赖
+Vercel部署入口点 - 使用标准库实现LLM调用
 """
 import os
 import sys
 import json
 import logging
+import urllib.request
+import urllib.error
 from http.server import BaseHTTPRequestHandler
 
 # 配置日志
@@ -14,6 +16,56 @@ logging.basicConfig(
     stream=sys.stderr
 )
 logger = logging.getLogger("vercel_app")
+
+# 调用DeepSeek API生成回复
+def generate_chat_response(messages):
+    """使用标准库调用DeepSeek API"""
+    try:
+        # 获取API密钥
+        api_key = os.environ.get("DEEPSEEK_API_KEY", "")
+        if not api_key:
+            logger.error("未设置DEEPSEEK_API_KEY环境变量")
+            return "抱歉，系统未配置API密钥，无法连接到DeepSeek模型。"
+        
+        # 准备请求数据
+        request_data = {
+            "model": "deepseek-ai/DeepSeek-R1",
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": 1000,
+            "stream": False
+        }
+        
+        # 创建请求
+        req = urllib.request.Request(
+            "https://api.siliconflow.cn/v1/chat/completions",
+            data=json.dumps(request_data).encode('utf-8'),
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json"
+            },
+            method="POST"
+        )
+        
+        # 发送请求
+        with urllib.request.urlopen(req, timeout=30) as response:
+            response_data = json.loads(response.read().decode('utf-8'))
+            
+            # 提取回复内容
+            if "choices" in response_data and len(response_data["choices"]) > 0:
+                content = response_data["choices"][0]["message"]["content"]
+                return content
+            else:
+                logger.error(f"DeepSeek API响应格式错误: {response_data}")
+                return "抱歉，无法解析DeepSeek API的响应。"
+    
+    except urllib.error.HTTPError as e:
+        logger.error(f"HTTP错误: {e.code} {e.reason}")
+        return f"抱歉，调用DeepSeek API时出错: HTTP {e.code}"
+    
+    except Exception as e:
+        logger.error(f"生成回复时出错: {str(e)}")
+        return f"抱歉，我遇到了一些问题: {str(e)}"
 
 # HTML页面模板
 HTML_TEMPLATE = """
@@ -76,6 +128,12 @@ HTML_TEMPLATE = """
             margin-left: 10px;
             cursor: pointer;
         }
+        .status {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -88,41 +146,100 @@ HTML_TEMPLATE = """
         
         <div class="input-area">
             <input type="text" id="user-input" placeholder="輸入你的問題...">
-            <button onclick="sendMessage()">發送</button>
+            <button id="send-button">發送</button>
         </div>
+        
+        <div class="status" id="status"></div>
     </div>
 
     <script>
-        function sendMessage() {
-            const input = document.getElementById('user-input');
-            const message = input.value.trim();
-            
-            if (message === '') return;
-            
-            // 添加用户消息
+        document.addEventListener('DOMContentLoaded', function() {
             const chat = document.getElementById('chat');
-            const userDiv = document.createElement('div');
-            userDiv.className = 'message user';
-            userDiv.textContent = message;
-            chat.appendChild(userDiv);
+            const userInput = document.getElementById('user-input');
+            const sendButton = document.getElementById('send-button');
+            const statusElement = document.getElementById('status');
             
-            // 清空输入框
-            input.value = '';
+            // 保存对话历史
+            const messageHistory = [];
             
-            // 添加机器人回复
-            setTimeout(() => {
-                const botDiv = document.createElement('div');
-                botDiv.className = 'message bot';
-                botDiv.textContent = "我收到了你的消息：" + message + "。目前我处于测试阶段，暂时无法连接到DeepSeek模型。";
-                chat.appendChild(botDiv);
-            }, 500);
-        }
-        
-        // 按Enter发送消息
-        document.getElementById('user-input').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                sendMessage();
+            // 发送消息函数
+            async function sendMessage() {
+                const message = userInput.value.trim();
+                if (message === '') return;
+                
+                // 添加用户消息
+                const userDiv = document.createElement('div');
+                userDiv.className = 'message user';
+                userDiv.textContent = message;
+                chat.appendChild(userDiv);
+                
+                // 清空输入框
+                userInput.value = '';
+                
+                // 添加到历史记录
+                messageHistory.push({ role: 'user', content: message });
+                
+                // 显示状态
+                statusElement.textContent = '機器人正在思考...';
+                
+                try {
+                    // 发送请求到API
+                    const response = await fetch('/api/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            messages: messageHistory
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    const data = await response.json();
+                    
+                    // 添加机器人回复
+                    const botDiv = document.createElement('div');
+                    botDiv.className = 'message bot';
+                    botDiv.textContent = data.content;
+                    chat.appendChild(botDiv);
+                    
+                    // 添加到历史记录
+                    messageHistory.push({ role: 'assistant', content: data.content });
+                    
+                    // 如果历史记录太长，删除最早的消息
+                    if (messageHistory.length > 10) {
+                        messageHistory.splice(0, 2);
+                    }
+                    
+                    // 清除状态
+                    statusElement.textContent = '';
+                } catch (error) {
+                    console.error('Error:', error);
+                    statusElement.textContent = '發生錯誤，請稍後再試';
+                    
+                    // 添加错误消息
+                    const botDiv = document.createElement('div');
+                    botDiv.className = 'message bot';
+                    botDiv.textContent = '抱歉，我遇到了一些問題，請稍後再試。';
+                    chat.appendChild(botDiv);
+                }
+                
+                // 滚动到底部
+                chat.scrollTop = chat.scrollHeight;
             }
+            
+            // 发送按钮点击事件
+            sendButton.addEventListener('click', sendMessage);
+            
+            // 输入框回车事件
+            userInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
         });
     </script>
 </body>
@@ -131,11 +248,64 @@ HTML_TEMPLATE = """
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        """处理GET请求"""
         self.send_response(200)
         self.send_header('Content-type', 'text/html; charset=utf-8')
         self.end_headers()
         self.wfile.write(HTML_TEMPLATE.encode('utf-8'))
         return
+    
+    def do_POST(self):
+        """处理POST请求"""
+        try:
+            # 聊天API端点
+            if self.path == "/api/chat":
+                # 读取请求体
+                content_length = int(self.headers['Content-Length'])
+                post_data = self.rfile.read(content_length).decode('utf-8')
+                request_data = json.loads(post_data)
+                
+                # 获取消息
+                messages = request_data.get('messages', [])
+                
+                # 调用LLM服务
+                response_content = generate_chat_response(messages)
+                
+                # 返回响应
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                
+                response = {
+                    "content": response_content,
+                    "role": "assistant"
+                }
+                
+                self.wfile.write(json.dumps(response).encode('utf-8'))
+                return
+            
+            # 未找到API端点
+            self.send_response(404)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            
+            error_response = {
+                "error": "API端点不存在",
+                "status": "error"
+            }
+            self.wfile.write(json.dumps(error_response).encode('utf-8'))
+            
+        except Exception as e:
+            logger.error(f"API请求处理错误: {str(e)}")
+            self.send_response(500)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            
+            error_response = {
+                "error": str(e),
+                "status": "error"
+            }
+            self.wfile.write(json.dumps(error_response).encode('utf-8'))
 
 # 这是Vercel需要的入口点
 # Vercel会自动识别这个文件并使用它来启动应用程序 
