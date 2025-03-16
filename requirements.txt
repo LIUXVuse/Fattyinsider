@@ -4,10 +4,12 @@ python-dotenv==1.0.1
 pydantic==2.0.3
 pydantic-settings==2.0.3
 
-langchain==0.0.267
-langchain-community==0.0.10
+# 更新langchain相关库版本，确保兼容性
+langchain==0.0.344
+langchain-community==0.0.19
 langchain-text-splitters==0.0.1
-langchain-openai==0.0.2
+langchain-openai==0.0.5
+langchain-core==0.1.27
 openai>=1.6.1,<2.0.0
 
 pinecone-client==2.2.2

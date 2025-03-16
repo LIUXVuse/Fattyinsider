@@ -14,7 +14,16 @@ pip --version || echo "无法获取pip版本"
 
 # 安装依赖
 echo "安装Python依赖..."
-python -m pip install -r requirements.txt || pip install -r requirements.txt || echo "pip安装失败"
+# 尝试多种安装方式，增加--no-deps选项避免依赖冲突
+python -m pip install --no-deps -r requirements.txt || \
+pip install --no-deps -r requirements.txt || \
+python -m pip install -r requirements.txt || \
+pip install -r requirements.txt || \
+echo "pip安装失败"
+
+# 单独安装核心依赖
+echo "单独安装核心依赖..."
+pip install fastapi==0.110.0 uvicorn==0.27.1 python-dotenv==1.0.1 || echo "核心依赖安装失败"
 
 # 显示已安装的包
 echo "显示已安装的包..."
