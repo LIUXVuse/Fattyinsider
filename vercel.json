@@ -20,6 +20,11 @@
       }
     }
   ],
+  "functions": {
+    "vercel_app.py": {
+      "maxDuration": 60
+    }
+  },
   "env": {
     "APP_ENV": "production",
     "PYTHONPATH": "/var/task",
