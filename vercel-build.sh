@@ -17,23 +17,28 @@ echo "安装核心依赖..."
 pip install --upgrade pip
 pip install fastapi==0.110.0 uvicorn==0.27.1 python-dotenv==1.0.1
 
-# 安装其他依赖，使用--no-deps避免依赖冲突
-echo "安装其他依赖..."
-pip install --no-deps -r requirements.txt || echo "部分依赖安装失败，继续执行"
-
-# 单独安装关键依赖
-echo "安装关键依赖..."
-pip install langchain>=0.0.310 langchain-openai>=0.0.2 openai>=1.6.1,<2.0.0
-pip install pinecone-client==2.2.2 loguru==0.7.0 tqdm==4.66.1
-pip install python-multipart==0.0.9 jinja2==3.1.2 httpx==0.24.1 pyyaml==5.4.1
-pip install aiohttp==3.8.5 sse-starlette==1.6.5
+# 安装所有依赖
+echo "安装项目依赖..."
+pip install -r requirements.txt
 
 # 显示已安装的包
 echo "显示已安装的包..."
 pip list || echo "无法显示已安装的包"
 
-# 确保目录结构正确
+# 创建必要的目录
 echo "创建必要的目录..."
 mkdir -p data/vector_store
+
+# 检查环境变量
+echo "检查环境变量..."
+if [ -z "$DEEPSEEK_API_KEY" ]; then
+    echo "警告: DEEPSEEK_API_KEY 未设置"
+fi
+if [ -z "$PINECONE_API_KEY" ]; then
+    echo "警告: PINECONE_API_KEY 未设置"
+fi
+if [ -z "$PINECONE_INDEX_NAME" ]; then
+    echo "警告: PINECONE_INDEX_NAME 未设置"
+fi
 
 echo "Vercel构建完成！" 

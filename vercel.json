@@ -12,6 +12,10 @@
   ],
   "routes": [
     {
+      "src": "/health",
+      "dest": "vercel_app.py"
+    },
+    {
       "src": "/(.*)",
       "dest": "vercel_app.py"
     }
