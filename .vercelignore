@@ -10,8 +10,10 @@ __pycache__/
 .env.development
 .env.test
 
-# 本地数据目录（如果使用Pinecone，本地向量存储不需要上传）
-data/vector_store/
+# 本地数据目录
+data/
+vector_store/
+faiss_index/
 
 # Git相关
 .git/
@@ -19,4 +21,61 @@ data/vector_store/
 
 # 其他不需要的文件
 *.log
-.DS_Store 
+.DS_Store
+*.txt
+*.md
+!readme.md
+*.json
+!vercel.json
+*.csv
+*.xlsx
+*.xls
+*.pdf
+*.zip
+*.tar
+*.gz
+*.rar
+*.7z
+*.mp3
+*.mp4
+*.wav
+*.avi
+*.mov
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.ico
+*.svg
+*.woff
+*.woff2
+*.ttf
+*.eot
+*.otf
+*.css
+*.scss
+*.less
+*.js
+*.jsx
+*.ts
+*.tsx
+*.vue
+*.svelte
+*.html
+*.xml
+*.yaml
+*.yml
+*.toml
+*.ini
+*.cfg
+*.conf
+*.sh
+*.bat
+*.cmd
+*.ps1
+*.psm1
+*.vscode/
+.idea/
+*.swp
+*.swo
+*~ 

@@ -4,10 +4,12 @@
 from typing import List, Dict, Any, Optional, Union
 import os
 from pathlib import Path
-from langchain_community.vectorstores import FAISS, Pinecone
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
+from langchain_huggingface import HuggingFaceEmbeddings
 import time
-import pinecone
+from langchain_community.embeddings import OpenAIEmbeddings
+from langchain_pinecone import PineconeVectorStore
+from pinecone import Pinecone, ServerlessSpec
 
 from app.core.config import settings
 from app.models.schemas import DocumentChunk, SearchResult
@@ -18,104 +20,94 @@ logger = get_logger(__name__)
 class VectorStore:
     """向量存儲類"""
     
-    def __init__(
-        self,
-        index_name: str = settings.PINECONE_INDEX_NAME,
-        embedding_model: str = settings.EMBEDDING_MODEL,
-        use_pinecone: bool = settings.USE_PINECONE
-    ):
-        """
-        初始化向量存儲
+    def __init__(self, embedding_model: str = None):
+        """初始化向量存儲
         
         Args:
-            index_name: 索引名稱
             embedding_model: 嵌入模型名稱
-            use_pinecone: 是否使用Pinecone
         """
+        self.embedding_model = embedding_model or settings.EMBEDDING_MODEL
+        self.embeddings = None
+        self.vector_store = None
+        
         try:
-            self.index_name = index_name
-            self.embedding_model = embedding_model
-            self.use_pinecone = use_pinecone
-            
-            # 初始化嵌入模型
-            logger.info(f"正在初始化嵌入模型: {embedding_model}")
+            print(f"正在初始化嵌入模型: {self.embedding_model}")
             self.embeddings = HuggingFaceEmbeddings(
-                model_name=embedding_model,
+                model_name=self.embedding_model,
                 model_kwargs={'device': 'cpu'},
                 encode_kwargs={'normalize_embeddings': True}
             )
-            
-            if use_pinecone:
-                # 初始化Pinecone
-                logger.info(f"正在初始化Pinecone: index_name={index_name}")
-                pinecone.init(
-                    api_key=settings.PINECONE_API_KEY,
-                    environment=settings.PINECONE_ENVIRONMENT
-                )
-                
-                # 檢查索引是否存在
-                if index_name not in pinecone.list_indexes():
-                    logger.warning(f"Pinecone索引 {index_name} 不存在，請在Pinecone控制台創建")
-                    logger.warning(f"維度應設置為384，指標類型為cosine")
-                    # 創建一個空的向量存儲
-                    self.vector_store = FAISS.from_texts(
-                        texts=["初始化文本"],  # 需要至少一個文本來初始化
-                        embedding=self.embeddings
-                    )
-                else:
-                    # 初始化向量存儲
-                    self.vector_store = Pinecone.from_existing_index(
-                        index_name=index_name,
-                        embedding=self.embeddings,
-                        text_key="text",
-                        namespace=settings.PINECONE_NAMESPACE
-                    )
-                    logger.info(f"初始化Pinecone向量存儲完成: index_name={index_name}")
-            else:
-                # 使用本地FAISS
-                self.index_path = Path(settings.VECTOR_STORE_PATH) / index_name
-                os.makedirs(self.index_path.parent, exist_ok=True)
-                
-                # 檢查是否存在現有索引
-                if self.index_path.exists() and any(self.index_path.iterdir()):
-                    logger.info(f"正在加載現有 FAISS 索引: {self.index_path}")
-                    self.vector_store = FAISS.load_local(
-                        folder_path=str(self.index_path),
-                        embeddings=self.embeddings,
-                        allow_dangerous_deserialization=True
-                    )
-                    logger.info(f"成功加載 FAISS 索引: {self.index_path}")
-                else:
-                    logger.info(f"創建新的 FAISS 索引: {self.index_path}")
-                    # 創建一個空的向量存儲
-                    self.vector_store = FAISS.from_texts(
-                        texts=["初始化文本"],  # 需要至少一個文本來初始化
-                        embedding=self.embeddings
-                    )
-                    # 保存索引
-                    self.vector_store.save_local(str(self.index_path))
-                    logger.info(f"成功創建並保存 FAISS 索引: {self.index_path}")
-                
-                logger.info(f"初始化向量存儲完成: index_path={self.index_path}, embedding_model={embedding_model}")
-        
+            self.vector_store = self._init_vector_store()
         except Exception as e:
-            logger.error(f"初始化向量存儲時出錯: {str(e)}")
+            print(f"初始化向量存儲時出錯: {str(e)}")
             raise
     
+    def _init_vector_store(self):
+        """初始化向量存儲"""
+        if settings.USE_PINECONE:
+            # 初始化 Pinecone
+            pc = Pinecone(api_key=settings.PINECONE_API_KEY)
+            
+            # 檢查索引是否存在
+            if settings.PINECONE_INDEX_NAME not in pc.list_indexes().names():
+                # 創建索引
+                pc.create_index(
+                    name=settings.PINECONE_INDEX_NAME,
+                    dimension=384,  # sentence-transformers/all-MiniLM-L6-v2 的維度
+                    metric='cosine',
+                    spec=ServerlessSpec(
+                        cloud='aws',
+                        region='us-west-2'
+                    )
+                )
+            
+            # 獲取索引
+            index = pc.Index(settings.PINECONE_INDEX_NAME)
+            
+            # 創建 LangChain 向量存儲
+            return PineconeVectorStore(
+                pinecone_api_key=settings.PINECONE_API_KEY,
+                index_name=settings.PINECONE_INDEX_NAME,
+                embedding=self.embeddings,
+                text_key="text"
+            )
+        else:
+            # 使用本地 FAISS 向量存儲
+            try:
+                return FAISS.load_local("faiss_index", self.embeddings)
+            except:
+                return FAISS.from_texts(["初始化向量库"], self.embeddings)
+    
+    def save(self):
+        """保存向量存儲"""
+        if not settings.USE_PINECONE and self.vector_store:
+            self.vector_store.save_local("faiss_index")
+    
+    def clear(self):
+        """清空向量存儲"""
+        if settings.USE_PINECONE:
+            # 清空 Pinecone 索引
+            pc = Pinecone(api_key=settings.PINECONE_API_KEY)
+            index = pc.Index(settings.PINECONE_INDEX_NAME)
+            index.delete(delete_all=True)
+        else:
+            # 重新初始化本地向量存儲
+            self.vector_store = FAISS.from_texts(["初始化向量库"], self.embeddings)
+            self.save()
+    
     def add_documents(self, documents: List[DocumentChunk]) -> List[str]:
-        """
-        添加文檔到向量存儲
+        """添加文檔到向量存儲
         
         Args:
-            documents: 文檔分塊列表
+            documents: 文檔列表
             
         Returns:
-            添加的文檔 ID 列表
+            文檔ID列表
         """
-        logger.info(f"添加 {len(documents)} 個文檔到向量存儲")
-        
         try:
-            # 將 DocumentChunk 轉換為 langchain 文檔
+            logger.info(f"添加 {len(documents)} 個文檔到向量存儲")
+            
+            # 準備文檔
             texts = [doc.text for doc in documents]
             metadatas = [doc.metadata for doc in documents]
             
@@ -126,11 +118,12 @@ class VectorStore:
             )
             
             # 如果是本地FAISS，保存索引
-            if not self.use_pinecone:
-                self.vector_store.save_local(str(self.index_path))
-                logger.info(f"成功保存 FAISS 索引: {self.index_path}")
+            if not settings.USE_PINECONE:
+                self.save()
             
+            logger.info(f"成功添加 {len(ids)} 個文檔")
             return ids
+            
         except Exception as e:
             logger.error(f"添加文檔到向量存儲時出錯: {str(e)}")
             raise
@@ -187,9 +180,9 @@ class VectorStore:
         """
         logger.info(f"從向量存儲中刪除 {len(ids)} 個文檔")
         
-        if self.use_pinecone:
+        if settings.USE_PINECONE:
             try:
-                index = pinecone.Index(self.index_name)
+                index = pinecone.Index(settings.PINECONE_INDEX_NAME)
                 index.delete(ids=ids, namespace=settings.PINECONE_NAMESPACE)
                 logger.info(f"成功從Pinecone中刪除 {len(ids)} 個文檔")
             except Exception as e:
@@ -202,11 +195,11 @@ class VectorStore:
         logger.warning("清空向量存儲中的所有數據")
         
         try:
-            if self.use_pinecone:
+            if settings.USE_PINECONE:
                 # 清空Pinecone索引
-                index = pinecone.Index(self.index_name)
+                index = pinecone.Index(settings.PINECONE_INDEX_NAME)
                 index.delete(delete_all=True, namespace=settings.PINECONE_NAMESPACE)
-                logger.info(f"成功清空 Pinecone 索引: {self.index_name}")
+                logger.info(f"成功清空 Pinecone 索引: {settings.PINECONE_INDEX_NAME}")
             else:
                 # 創建一個新的空向量存儲
                 self.vector_store = FAISS.from_texts(
