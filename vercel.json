@@ -3,52 +3,16 @@
   "builds": [
     {
       "src": "vercel_app.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "50mb",
-        "runtime": "python3.9"
-      }
+      "use": "@vercel/python"
     }
   ],
   "routes": [
     {
-      "src": "/health",
-      "dest": "vercel_app.py"
-    },
-    {
       "src": "/(.*)",
-      "dest": "vercel_app.py",
-      "headers": {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "X-Requested-With, Content-Type, Accept"
-      }
+      "dest": "vercel_app.py"
     }
   ],
   "env": {
-    "APP_ENV": "production",
-    "LOG_LEVEL": "info",
-    "USE_PINECONE": "true",
-    "DEPLOY_TIMESTAMP": "2024-03-16-12-00-00"
-  },
-  "buildCommand": "bash vercel-build.sh",
-  "functions": {
-    "vercel_app.py": {
-      "memory": 1024,
-      "maxDuration": 10
-    }
-  },
-  "git": {
-    "deploymentEnabled": {
-      "master": true,
-      "main": true
-    }
-  },
-  "github": {
-    "enabled": true,
-    "silent": false,
-    "autoAlias": true
-  },
-  "public": true,
-  "cleanUrls": true
+    "APP_ENV": "production"
+  }
 } 
