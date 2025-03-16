@@ -1,5 +1,6 @@
 {
   "version": 2,
+  // 部署時間戳記：2024-03-16 12:00:00
   "builds": [
     {
       "src": "vercel_app.py",
@@ -28,7 +29,8 @@
   "env": {
     "APP_ENV": "production",
     "LOG_LEVEL": "info",
-    "USE_PINECONE": "true"
+    "USE_PINECONE": "true",
+    "DEPLOY_TIMESTAMP": "2024-03-16-12-00-00"
   },
   "buildCommand": "bash vercel-build.sh",
   "functions": {
