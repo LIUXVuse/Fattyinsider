@@ -47,5 +47,8 @@
     "enabled": true,
     "silent": false,
     "autoAlias": true
-  }
+  },
+  "public": true,
+  "cleanUrls": true,
+  "forceNew": true
 } 
