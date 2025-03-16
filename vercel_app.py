@@ -38,7 +38,7 @@ def generate_chat_response(messages):
         
         # 准备请求数据 - 使用DeepSeek V3模型
         request_data = {
-            "model": "deepseek-ai/deepseek-v3",  # 改用DeepSeek V3模型
+            "model": "deepseek-ai/DeepSeek-V3",  # 修正模型名称，注意大小写
             "messages": messages,
             "temperature": 0.5,  # 降低温度以加快响应
             "max_tokens": 300,   # 进一步减少token数量
@@ -73,7 +73,13 @@ def generate_chat_response(messages):
     
     except urllib.error.HTTPError as e:
         logger.error(f"HTTP错误: {e.code} {e.reason}")
-        return f"抱歉，调用DeepSeek API时出错: HTTP {e.code}"
+        # 添加更详细的错误信息
+        try:
+            error_body = e.read().decode('utf-8')
+            logger.error(f"错误详情: {error_body}")
+            return f"抱歉，调用DeepSeek API时出错: HTTP {e.code}，错误详情: {error_body}"
+        except:
+            return f"抱歉，调用DeepSeek API时出错: HTTP {e.code}"
     
     except socket.timeout:
         logger.error("API请求超时")
