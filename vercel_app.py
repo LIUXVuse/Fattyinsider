@@ -6,6 +6,7 @@ import sys
 import json
 import logging
 import asyncio
+import httpx
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 
@@ -28,20 +29,66 @@ else:
 # 定义LLM服务函数
 async def generate_chat_response(messages, stream=False, temperature=0.7, max_tokens=1000):
     """
-    生成聊天回复的简化版本，直接在vercel_app.py中实现
+    生成聊天回复，调用DeepSeek API
     """
     try:
         # 记录请求
         logger.info(f"处理聊天请求，消息数: {len(messages)}")
         
-        # 简单的回复逻辑
-        user_message = messages[0]["content"] if messages else ""
+        # 获取API密钥
+        api_key = os.environ.get("DEEPSEEK_API_KEY", "")
+        if not api_key:
+            logger.error("未设置DEEPSEEK_API_KEY环境变量")
+            return {
+                "content": "抱歉，系统未配置API密钥，无法连接到DeepSeek模型。",
+                "role": "assistant"
+            }
         
-        # 返回响应
-        return {
-            "content": f"你好！我收到了你的消息：\"{user_message}\"。我是肥宅老司機AI聊天機器人，目前正在测试阶段。",
-            "role": "assistant"
+        # 准备请求数据
+        request_data = {
+            "model": "deepseek-ai/DeepSeek-R1",
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": False
         }
+        
+        # 调用DeepSeek API
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                "https://api.siliconflow.cn/v1/chat/completions",
+                json=request_data,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                }
+            )
+            
+            # 检查响应状态
+            if response.status_code != 200:
+                logger.error(f"DeepSeek API请求失败: {response.status_code} {response.text}")
+                return {
+                    "content": f"抱歉，调用DeepSeek API时出错: HTTP {response.status_code}",
+                    "role": "assistant"
+                }
+            
+            # 解析响应
+            response_data = response.json()
+            logger.info(f"收到DeepSeek API响应: {response_data}")
+            
+            # 提取回复内容
+            if "choices" in response_data and len(response_data["choices"]) > 0:
+                content = response_data["choices"][0]["message"]["content"]
+                return {
+                    "content": content,
+                    "role": "assistant"
+                }
+            else:
+                logger.error(f"DeepSeek API响应格式错误: {response_data}")
+                return {
+                    "content": "抱歉，无法解析DeepSeek API的响应。",
+                    "role": "assistant"
+                }
             
     except Exception as e:
         logger.error(f"生成回复时出错: {str(e)}")
@@ -171,6 +218,9 @@ HTML_TEMPLATE = """
             const sendButton = document.getElementById('send-button');
             const statusElement = document.getElementById('status');
             
+            // 保存对话历史
+            const messageHistory = [];
+            
             // 发送消息函数
             async function sendMessage() {
                 const message = messageInput.value.trim();
@@ -179,6 +229,9 @@ HTML_TEMPLATE = """
                 // 添加用户消息到聊天窗口
                 addMessage(message, 'user');
                 messageInput.value = '';
+                
+                // 添加到历史记录
+                messageHistory.push({ role: 'user', content: message });
                 
                 // 显示状态
                 statusElement.textContent = '機器人正在思考...';
@@ -191,9 +244,7 @@ HTML_TEMPLATE = """
                             'Content-Type': 'application/json'
                         },
                         body: JSON.stringify({
-                            messages: [
-                                { role: 'user', content: message }
-                            ]
+                            messages: messageHistory
                         })
                     });
                     
@@ -203,6 +254,14 @@ HTML_TEMPLATE = """
                     
                     const data = await response.json();
                     addMessage(data.content, 'bot');
+                    
+                    // 添加到历史记录
+                    messageHistory.push({ role: 'assistant', content: data.content });
+                    
+                    // 如果历史记录太长，删除最早的消息
+                    if (messageHistory.length > 10) {
+                        messageHistory.splice(0, 2);
+                    }
                 } catch (error) {
                     console.error('发送消息失败:', error);
                     addMessage('抱歉，我遇到了一些问题，无法回应你的问题。', 'bot');
