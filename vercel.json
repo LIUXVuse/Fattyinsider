@@ -11,6 +11,11 @@
       }
     }
   ],
+  "functions": {
+    "vercel_app.py": {
+      "maxDuration": 59.9
+    }
+  },
   "routes": [
     {
       "src": "/(.*)",
