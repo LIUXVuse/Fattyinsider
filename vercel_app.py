@@ -9,6 +9,10 @@ import urllib.request
 import urllib.error
 import socket
 from http.server import BaseHTTPRequestHandler
+from dotenv import load_dotenv
+
+# 載入 .env 文件中的環境變數
+load_dotenv()
 
 # 配置日志
 logging.basicConfig(
@@ -25,32 +29,32 @@ def generate_chat_response(messages):
         # 获取API密钥
         api_key = os.environ.get("DEEPSEEK_API_KEY", "")
         if not api_key:
-            logger.error("未设置DEEPSEEK_API_KEY环境变量")
+            logger.error("未设置DEEPSEEK_API_KEY环境变量。請確認 .env 文件存在且包含 DEEPSEEK_API_KEY。")
             return "抱歉，系统未配置API密钥，无法连接到DeepSeek模型。"
         
         # 优化消息历史，只保留最近的几条消息
-        if len(messages) > 3:
-            # 保留第一条系统消息（如果有）和最近的2条对话
+        if len(messages) > 10:
+            # 保留第一条系统消息（如果有）和最近的 9 条对话 (總共10條)
             system_messages = [msg for msg in messages if msg.get('role') == 'system']
-            recent_messages = messages[-2:]
+            recent_messages = messages[-9:]
             messages = system_messages + recent_messages
             logger.info(f"消息历史过长，已优化为{len(messages)}条消息")
         
         # 准备请求数据 - 使用DeepSeek V3模型
         request_data = {
-            "model": "deepseek-ai/DeepSeek-V3",  # 确保模型名称正确
+            "model": "deepseek-chat",  # 修改模型名稱
             "messages": messages,
-            "temperature": 0.3,  # 进一步降低温度以加快响应
-            "max_tokens": 200,   # 减少token数量以加快响应
-            "top_p": 0.5,        # 添加top_p参数控制输出多样性
-            "top_k": 30,         # 添加top_k参数限制候选词数量
+            "temperature": 0.3,
+            "max_tokens": 1024,   # 將 200 改為 1024
+            "top_p": 0.5,
+            "top_k": 30,
             "frequency_penalty": 0.5, # 添加频率惩罚减少重复
             "stream": False      # 不使用流式输出，因为标准库不易处理
         }
         
         # 创建请求
         req = urllib.request.Request(
-            "https://api.siliconflow.cn/v1/chat/completions",
+            "https://api.deepseek.com/v1/chat/completions",
             data=json.dumps(request_data).encode('utf-8'),
             headers={
                 "Authorization": f"Bearer {api_key}",
@@ -59,11 +63,12 @@ def generate_chat_response(messages):
             method="POST"
         )
         
-        # 设置更长的超时时间
-        socket.setdefaulttimeout(55)  # 设置55秒超时，接近Vercel免费用户的最大限制60秒
+        # 设置更长的超时时间 - 移除 Vercel 的限制
+        # socket.setdefaulttimeout(55) # 移除此行
         
         # 发送请求
-        with urllib.request.urlopen(req) as response:
+        # 注意：urlopen 仍然有它自己的默认超时，如果需要可以单独设置 timeout 参数
+        with urllib.request.urlopen(req, timeout=120) as response: # 添加 timeout=120 (秒)
             response_data = json.loads(response.read().decode('utf-8'))
             
             # 提取回复内容
@@ -91,7 +96,7 @@ def generate_chat_response(messages):
             return f"抱歉，调用DeepSeek API时出错: HTTP {e.code}"
     
     except socket.timeout:
-        logger.error("API请求超时（55秒）")
+        logger.error("API请求超时（120秒）")
         return "抱歉，API请求超时。请尝试发送更简短的消息，或者稍后再试。"
     
     except Exception as e:
@@ -213,7 +218,7 @@ HTML_TEMPLATE = """
         
         <div class="status" id="status"></div>
         <button class="clear-button" id="clear-button">清空對話</button>
-        <div class="warning">注意：由於Vercel函數執行時間限制，請保持問題簡短，避免複雜長問題導致超時。每次對話僅保留最近2條消息。回應時間最長為55秒。</div>
+        <div class="warning">提示：對話歷史會保留最近的幾條消息。</div>
         <div class="model-info">使用 DeepSeek V3 模型提供服務</div>
     </div>
 
@@ -231,7 +236,7 @@ HTML_TEMPLATE = """
             // 初始化时添加系统消息
             messageHistory.push({
                 role: 'system',
-                content: '你是肥宅老司機AI聊天機器人，一個友好、幽默的助手。請提供簡短、準確的回答。'
+                content: '你是肥宅老司機AI聊天機器人，一個友好、幽默的助手。請務必使用繁體中文（Traditional Chinese）回覆。'
             });
             
             // 发送消息函数
@@ -292,18 +297,9 @@ HTML_TEMPLATE = """
                     // 添加到历史记录
                     messageHistory.push({ role: 'assistant', content: data.content });
                     
-                    // 如果历史记录太长，删除最早的非系统消息
-                    if (messageHistory.length > 5) { // 保留1个系统消息和4个对话消息
-                        const systemMessages = messageHistory.filter(msg => msg.role === 'system');
-                        const nonSystemMessages = messageHistory.filter(msg => msg.role !== 'system');
-                        
-                        while (nonSystemMessages.length > 4) {
-                            nonSystemMessages.shift();
-                        }
-                        
-                        messageHistory.length = 0;
-                        messageHistory.push(...systemMessages, ...nonSystemMessages);
-                    }
+                    // 注意：前端的歷史記錄限制邏輯可以暫時移除或調整，
+                    // 因為後端已經有基本的歷史長度限制 (10條)
+                    // 如果需要更精確的控制，前後端需要同步限制邏輯
                     
                     // 清除状态
                     statusElement.textContent = '';
@@ -337,11 +333,15 @@ HTML_TEMPLATE = """
             
             // 清空对话历史
             function clearChat() {
-                // 保留系统消息
-                const systemMessages = messageHistory.filter(msg => msg.role === 'system');
-                messageHistory.length = 0;
-                messageHistory.push(...systemMessages);
+                // 清空前端歷史
+                messageHistory.length = 0; 
                 
+                // 重新加入初始的系統訊息 (如果後端需要它)
+                messageHistory.push({
+                    role: 'system',
+                    content: '你是肥宅老司機AI聊天機器人，一個友好、幽默的助手。請務必使用繁體中文（Traditional Chinese）回覆。'
+                });
+
                 // 清空聊天界面，只保留欢迎消息
                 chat.innerHTML = '<div class="message bot">你好！我是肥宅老司機 AI 聊天機器人。有什麼我能幫你的嗎？</div>';
                 
@@ -433,3 +433,16 @@ class handler(BaseHTTPRequestHandler):
 
 # 这是Vercel需要的入口点
 # Vercel会自动识别这个文件并使用它来启动应用程序 
+
+if __name__ == "__main__":
+    from http.server import HTTPServer
+    port = 8000
+    # 使用 '' 代替 '0.0.0.0' 以兼容不同系统
+    server_address = ('', port) 
+    print(f"正在 {port} 端口上啟動 HTTP 伺服器...")
+    httpd = HTTPServer(server_address, handler)
+    try:
+        httpd.serve_forever()
+    except KeyboardInterrupt:
+        print("\n伺服器已停止.")
+        httpd.server_close() 

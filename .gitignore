@@ -45,6 +45,8 @@ logs/
 *.swp
 *.swo
 .DS_Store
+# Cursor 特有規則
+.cursorrules
 
 # 測試文件
 .coverage
