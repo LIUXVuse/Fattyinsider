@@ -41,12 +41,19 @@ async function generateChatResponse(messages, apiKey) {
     "Authorization": `Bearer ${apiKey}`,
   });
 
+  // --- 增加日誌 ---
+  console.log("[DeepSeek Call DEBUG] Messages array before stringify:", JSON.stringify(messages)); // 打印 messages 陣列
+  const bodyToSend = JSON.stringify(requestData); // 預先 stringify
+  console.log(`[DeepSeek Call DEBUG] Sending Body String: ${bodyToSend}`); // 打印完整的請求 body
+  // --- 增加日誌結束 ---
+
   try {
-    console.log(`[DeepSeek Call] Sending request to DeepSeek API: ${JSON.stringify(requestData)}`);
+    // console.log(`[DeepSeek Call] Sending request to DeepSeek API: ${JSON.stringify(requestData)}`); // 舊日誌
+    console.log(`[DeepSeek Call] Sending request to DeepSeek API.`); // 新日誌
     const apiResponse = await fetch(deepseekUrl, {
       method: "POST",
       headers: fetchHeaders,
-      body: JSON.stringify(requestData),
+      body: bodyToSend, // 使用預先 stringify 的 body
     });
     console.log(`[DeepSeek Call] Received DeepSeek API status: ${apiResponse.status}`);
 
