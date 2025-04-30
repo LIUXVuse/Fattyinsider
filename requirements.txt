@@ -1,21 +1,30 @@
+# 不需要任何外部依赖 
+
+# 基本依赖
 fastapi==0.110.0
 uvicorn==0.27.1
-python-dotenv==1.0.1
 pydantic>=2.7,<3.0
 pydantic-settings>=2.4
+
+# LLM相关
+openai>=1.6.1,<2.0.0
+httpx>=0.24.1
+
+# 向量数据库
+pinecone-client==2.2.2
+
+# 工具库
+python-dotenv>=1.0.0
+sse-starlette==1.6.5
 
 # 核心依赖
 langchain-community==0.2.0
 langchain==0.2.0
-openai>=1.6.1,<2.0.0
-
-# 向量数据库 (暫時移除 Pinecone)
-# pinecone-client==2.2.2
 
 # 工具库
-loguru==0.7.0
+loguru>=0.7.0
 python-multipart==0.0.9
-httpx==0.24.1
 
-# 流式响应
-sse-starlette==1.6.5
+# RAG
+chromadb>=0.5.0
+sentence-transformers>=2.2.0 

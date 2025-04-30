@@ -1,43 +1,12 @@
-# 環境變量文件
-.env
-.env.local
-.env.development
-.env.production
-
-# Python虛擬環境
-venv/
-env/
-ENV/
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
 
-# 向量存儲和數據文件
-data/vector_store/
-*.faiss
-*.pkl
-*.bin
-
-# 日誌文件
-logs/
-*.log
+# Virtualenv
+.venv/
+venv/
+ENV/
 
 # IDE文件
 .idea/
@@ -49,10 +18,32 @@ logs/
 .cursorrules
 
 # 測試文件
+.pytest_cache/
 .coverage
 htmlcov/
-.pytest_cache/
+
+# 配置文件
+.env
+*.env.local
+*.env.*.local
+
+# 構建和分發
+build/
+dist/
+*.egg-info/
+*.egg
+
+# 日誌文件
+*.log
+
+# 操作系統文件
+Thumbs.db
+ehthumbs.db
 
 # 其他
-.vercel
-node_modules/ 
+node_modules/ # 以防萬一有殘留
+.next/ # 以防萬一有殘留
+
+# 特定工具
+.mypy_cache/
+.ruff_cache/ 
