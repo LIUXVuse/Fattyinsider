@@ -126,10 +126,15 @@ export default {
     const pathname = url.pathname;
     const method = request.method;
 
+    // --- ADD EXTRA LOGGING ---
+    console.log(`[Worker Start] Received Request: Method=${method}, Pathname=${pathname}, URL=${request.url}`);
+    // --- END EXTRA LOGGING ---
+
     console.log(`[Worker Fetch] Method=${method}, Path=${pathname}`);
 
     // API 路由: 處理對 /api/chat 的 POST 請求
     if (pathname === "/api/chat" && method === "POST") {
+      console.log(`[Worker Match] Condition met for /api/chat POST. Entering API handler.`);
       console.log("[Worker Fetch] Handling /api/chat POST...");
       try {
         const requestBody = await request.json();
@@ -167,16 +172,17 @@ export default {
             });
         }
       }
-    }
-
-    // 靜態檔案路由: 對於所有其他請求，嘗試從 ASSETS 提供服務
-    console.log(`[Worker Fetch] Path '${pathname}' not API route, attempting static asset...`);
-    try {
-      return await env.ASSETS.fetch(request);
-    } catch (e) {
-      console.error(`[Worker Fetch] Error fetching static asset for path '${pathname}':`, e);
-      // 對於找不到的靜態資源，返回 404 HTML 頁面可能更好，但文字也可以
-      return new Response("資源未找到 (Not Found)", { status: 404 });
+    } else {
+        console.log(`[Worker No Match] Condition NOT met for /api/chat POST. Falling through to static assets.`);
+        // 靜態檔案路由: 對於所有其他請求，嘗試從 ASSETS 提供服務
+        console.log(`[Worker Fetch] Path '${pathname}' not API route, attempting static asset...`);
+        try {
+          return await env.ASSETS.fetch(request);
+        } catch (e) {
+          console.error(`[Worker Fetch] Error fetching static asset for path '${pathname}':`, e);
+          // 對於找不到的靜態資源，返回 404 HTML 頁面可能更好，但文字也可以
+          return new Response("資源未找到 (Not Found)", { status: 404 });
+        }
     }
   },
 };
