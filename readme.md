@@ -1,65 +1,55 @@
 # 肥宅老司機 AI 聊天機器人
 
-## 項目概述.
+## 項目概述
 
-肥宅老司機 AI 聊天機器人是一個基於 DeepSeek 大型語言模型的聊天應用。該應用最初設計用於 Vercel 平台，因遇到執行時間限制和依賴安裝問題，現計劃遷移至 Cloudflare 平台。
+肥宅老司機 AI 聊天機器人是一個基於 DeepSeek 大型語言模型的聊天應用，部署在 Cloudflare Pages 上。此應用旨在為「肥宅老司機」Podcast 的聽眾提供一個互動界面，並計劃整合節目內容摘要以實現 RAG (Retrieval-Augmented Generation) 功能。
 
-## 技術架構 (目標 for Cloudflare)
+## 當前狀態 (Cloudflare Pages)
 
-- **前端**：HTML, CSS, JavaScript (嵌入在 Python 文件中)
-- **後端**：Python (需要適配 Cloudflare Workers 運行環境)
-- **AI 模型**：DeepSeek (`deepseek-chat` 模型)
-- **運行環境**：Cloudflare Workers / Pages
-- **向量數據庫**：計劃使用 ChromaDB (本地運行) 或 Cloudflare Vectorize
-- **Embedding 模型**：計劃使用 `sentence-transformers` (本地運行，需確認 Workers 相容性)
-- **依賴管理**：`requirements.txt` (需要根據 Workers 環境調整)
-- **密鑰管理**：Cloudflare 環境變數 (包含 `DEEPSEEK_API_KEY`)
+- **前端**: `index.html` (位於專案根目錄)，包含 HTML, CSS, 和 JavaScript 用於聊天界面。
+- **後端**: `_worker.js` (使用 Cloudflare Pages Advanced Mode)，處理 API 路由 (`/api/chat`) 和靜態文件服務。
+- **AI 模型**: DeepSeek (`deepseek-chat` 模型)，通過後端 Worker 調用其 API。
+- **運行環境**: Cloudflare Pages (使用 `_worker.js` 進階模式)。
+- **部署**: 自動從 GitHub (`master` 分支) 部署。
+- **核心功能**: 基本聊天功能已可正常運作。
 
-## 當前功能 (Devbox 基準)
+## RAG 整合計劃
 
-- 基本的聊天界面
-- 與 DeepSeek API (`deepseek-chat` 模型) 成功集成
-- 消息歷史管理（保留最近的 10 條對話）
-- AI 已配置為使用繁體中文回覆
+- **目標**: 利用 `S3EP201_204/podcast_summaries_merged.txt` 中的節目摘要，讓 AI 能夠回答關於特定節目內容的問題。
+- **向量數據庫**: **Cloudflare Vectorize** (推薦方案)。利用其與 Workers 的原生整合和 Serverless 特性。
+- **Embedding 模型**: **Cloudflare Workers AI** (例如 `baai/bge-base-en-v1.5` 或其他適合中文的模型)。在 Worker 中直接調用生成向量。
+- **流程**: 
+    1. 預處理 `podcast_summaries_merged.txt`。
+    2. 使用 Workers AI Embedding 模型將摘要文本轉換為向量。
+    3. 將文本及其向量儲存到 Cloudflare Vectorize。
+    4. 在 `_worker.js` 中：
+        a. 接收用戶問題。
+        b. 將問題轉換為向量。
+        c. 在 Vectorize 中進行相似性搜索，找出最相關的節目摘要。
+        d. 將相關摘要內容與原始問題一起組合進 Prompt。
+        e. 將組合後的 Prompt 發送給 DeepSeek API。
+        f. 將 DeepSeek 的回答返回給前端。
 
-## 開發進度與挑戰
+## 開發歷程中的主要挑戰與解決方案
 
-1.  **環境遷移 (Vercel -> ClawCloud Devbox)**：已完成，但遇到持續的依賴安裝問題 (`pip` 解析衝突, `PyYAML` 編譯錯誤, `torch` 資源耗盡) 和部署問題 (`nodePort range is full`)。
-2.  **API 連接**：成功連接 DeepSeek API，解決了 API Key、端點和模型名稱問題。
-3.  **向量數據庫選型**：
-    - 放棄 ClawCloud Milvus (潛在費用)。
-    - 初步選定 ChromaDB + `sentence-transformers` (本地運行)。
-    - DeepSeek 官方暫不提供 Embedding API。
-4.  **決定再次遷移 (ClawCloud Devbox -> Cloudflare)**：由於 Devbox 環境不穩定，決定遷移到 Cloudflare。
+- **環境遷移**: 從 Vercel/Python 遷移至 Cloudflare。
+- **部署錯誤**: 經歷了 `functions` 目錄衝突、`.venv` 符號連結、405 Method Not Allowed、422 Unprocessable Content 等錯誤。
+- **路由/靜態文件問題**: Cloudflare Pages 的「建置輸出目錄」設定與 `_worker.js` 進階模式路由的交互問題導致前端文件版本不一致或路由失敗。
+- **最終解決方案**: 
+    - 使用 `_worker.js` 進階模式。
+    - 將 `index.html` 移至專案根目錄。
+    - 將 Cloudflare Pages 的「建置輸出目錄」設定為 `.` (或 `/`)。
+    - 確保 `_worker.js` 正確處理 API 路由和靜態文件 fallback。
 
-## 下一步計劃 (Cloudflare 遷移)
+## 如何在本地運行 (使用 Wrangler)
 
-1.  **清理專案**：移除 Vercel 和 Devbox Dockerfile，整理 `requirements.txt`。(進行中)
-2.  **恢復核心代碼**：確保 `vercel_app.py` 的核心邏輯可用。(進行中)
-3.  **更新 GitHub 倉庫**：將清理後的專案推送到 GitHub。(進行中)
-4.  **適配 Cloudflare Workers**：
-    - 修改 `vercel_app.py` 以符合 Workers 的事件處理模型 (可能使用 `itty-router-python`)。
-    - 重新評估 `requirements.txt`，確保依賴與 Python Workers (Wasm) 環境兼容。
-    - 研究在 Workers 中運行 `sentence-transformers` 的可行性，或尋找替代方案 (如 Cloudflare Vectorize + Workers AI Embedding)。
-5.  **設定 Cloudflare Pages/Workers 部署**：連接 GitHub 倉庫，設定自動部署。
-6.  **配置環境變數**：在 Cloudflare 中設定 `DEEPSEEK_API_KEY`。
-7.  **實現 RAG**：在 Cloudflare 環境下整合向量數據庫和 Embedding。
+1.  確保已安裝 Node.js 和 npm/yarn/pnpm。
+2.  安裝 Wrangler CLI: `npm install -g wrangler`
+3.  克隆倉庫並進入專案目錄。
+4.  (可選) 創建 `.dev.vars` 文件並在其中設定 `DEEPSEEK_API_KEY = "YOUR_API_KEY"` 以供本地開發使用 (注意不要提交此文件到 Git)。或者，運行時通過環境變數傳遞。
+5.  運行本地開發伺服器: `wrangler pages dev . --kv=YOUR_KV_BINDING_IF_ANY --vectorize=YOUR_VECTORIZE_BINDING_IF_ANY --ai=YOUR_AI_BINDING_IF_ANY --var DEEPSEEK_API_KEY:YOUR_API_KEY` (根據需要添加綁定和變數)。如果沒有綁定，可以直接運行 `wrangler pages dev . --var DEEPSEEK_API_KEY:YOUR_API_KEY`。
+6.  在瀏覽器中訪問 `http://localhost:8788` (或 Wrangler 顯示的其他端口)。
 
-## 如何在本地運行 (Devbox - 僅供參考，可能已失效)
+## 密鑰管理
 
-1.  確保已安裝 Python 3.11。
-2.  創建並激活虛擬環境：
-    ```bash
-    python3 -m venv .venv
-    source .venv/bin/activate
-    ```
-3.  安裝依賴：
-    ```bash
-    pip install -r requirements.txt 
-    ```
-4.  創建 `.env` 文件並設置 `DEEPSEEK_API_KEY`。
-5.  運行應用：
-    ```bash
-    python vercel_app.py
-    ```
-6.  在瀏覽器中訪問 `http://localhost:8000` (或 Devbox 提供的端口轉發地址)。 
+- **生產環境**: `DEEPSEEK_API_KEY` 應在 Cloudflare Pages 專案的「設定」->「環境變數」中配置。 
