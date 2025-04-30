@@ -213,9 +213,7 @@
                     if (done) break;
                     buffer += decoder.decode(value, { stream: true });
 
-                    // SSE (Server-Sent Events) 通常以 "data: " 開頭，以 "
-
-" 結尾
+                    // SSE (Server-Sent Events) 通常以 "data: " 開頭，以 "\n\n" 結尾
                     let lines = buffer.split('\n\n');
                     buffer = lines.pop() || ""; // 保留最後不完整的部分
 
