@@ -135,52 +135,39 @@ def generate_chat_response(messages, api_key):
         return {"status": 500, "body": json.dumps(response_data).encode('utf-8'), "headers": {"Content-Type": "application/json"}}
 
 
-# Cloudflare Pages Functions 的通用入口點
+# Cloudflare Pages Functions - 通用入口點
 async def onRequest(context):
-    # 從 context 中獲取請求對象
     request = context.request
-    print(f"onRequest 函數被呼叫！請求方法: {request.method}")
+    method = request.method
+    print(f"[onRequest DEBUG] Received request: Method={method}, URL={request.url}")
 
-    # 檢查請求方法是否為 POST
-    if request.method == "POST":
-        print("處理 POST 請求...")
-        try:
-            # 嘗試讀取請求體
-            try:
-                request_body = await request.json()
-                print(f"收到請求體: {request_body}")
-            except Exception as e:
-                print(f"讀取請求體時出錯 (但不中斷調試): {e}")
-                # 即使讀取失敗，在調試階段也繼續返回成功
-
-            # 直接返回一個固定的成功響應 (用於調試)
-            debug_response = {"message": "POST request received successfully via onRequest (debug)"}
-            
-            # Cloudflare Pages 會自動將字典轉換為 JSON Response (狀態碼 200)
-            return debug_response
-
-        except Exception as e:
-            print(f"處理 POST 請求時發生未知錯誤: {e}")
-            error_response = {"error": "內部伺服器錯誤 (調試模式)"}
-            # 返回字典，CF 會處理成 status 500 JSON Response
-            # 需要顯式返回 Response 物件才能自訂狀態碼和標頭
-            # from cloudflare import Response # 假設導入
-            # return Response(json.dumps(error_response), status=500, headers={"Content-Type": "application/json"})
-            return error_response
+    if method == "POST":
+        print("[onRequest DEBUG] Handling POST request...")
+        # 極度簡化，直接返回成功
+        return {"message": "POST request received via onRequest (Super Simple Debug)"}
     
-    # 如果不是 POST 請求，則返回 405 Method Not Allowed
+    elif method == "GET":
+        print("[onRequest DEBUG] Handling GET request...")
+        return {"message": "GET request received via onRequest (Super Simple Debug)"}
+
     else:
-        print(f"拒絕非 POST ({request.method}) 請求")
-        # 為了返回正確的 405，我們需要 Response 對象
-        # 暫時返回一個表示錯誤的字典，狀態碼可能不會是 405
-        # return {"error": f"{request.method} method not allowed for /api/chat"}
-        # 嘗試標準 Response (如果環境支援)
+        # 對於其他方法，嘗試返回 405
+        print(f"[onRequest DEBUG] Rejecting {method} request...")
         try:
-            # 假設 Response 類可以直接使用
-            return Response(f"{request.method} method not allowed for /api/chat", status=405)
+            # 假設 Response 類可用
+            return Response(f"{method} method not allowed", status=405)
         except NameError:
-             # 如果 Response 不可用，返回字典
-             return {"error": f"{request.method} method not allowed for /api/chat", "status_intended": 405}
+            return {"error": f"{method} method not allowed", "status_intended": 405}
+
+# 同時定義 onRequestPost 和 onRequestGet 作為備用測試
+# 看看 Cloudflare 是否能直接識別它們
+async def onRequestPost(context):
+    print("[onRequestPost DEBUG] Function directly called!")
+    return {"message": "POST request received via onRequestPost (Direct Debug)"}
+
+async def onRequestGet(context):
+    print("[onRequestGet DEBUG] Function directly called!")
+    return {"message": "GET request received via onRequestGet (Direct Debug)"}
 
 # 移除舊的 onRequestPost 和 generate_chat_response
 # async def onRequestPost(context): ...
