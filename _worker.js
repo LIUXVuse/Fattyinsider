@@ -132,16 +132,17 @@ export default {
     // API 路由: 處理對 /api/chat 的 POST 請求
     if (pathname === "/api/chat" && method === "POST") {
       console.log(`[Worker Match] Condition met for /api/chat POST. Entering API handler (Simplified).`);
-      // --- SIMPLIFIED RESPONSE --- 
-      // 直接返回成功 JSON，不呼叫 DeepSeek
+      // --- REMOVE SIMPLIFIED RESPONSE --- 
+      /* 
       const successResponse = { success: true, message: "API route hit successfully (simplified)" };
       return new Response(JSON.stringify(successResponse), {
         status: 200,
         headers: { "Content-Type": "application/json" },
       });
-      // --- END SIMPLIFIED RESPONSE ---
+      */
+      // --- END REMOVE SIMPLIFIED RESPONSE ---
 
-      /* --- Temporarily Commented Out Original Logic ---
+      // --- UNCOMMENT ORIGINAL LOGIC ---
       console.log("[Worker Fetch] Handling /api/chat POST...");
       try {
         const requestBody = await request.json();
@@ -157,6 +158,8 @@ export default {
         }
 
         const apiKey = env.DEEPSEEK_API_KEY;
+        // --- Need to ensure generateChatResponse is defined in the file ---
+        // Assuming generateChatResponse is defined elsewhere in the file (as it was originally)
         return await generateChatResponse(messages, apiKey);
 
       } catch (e) {
@@ -176,7 +179,7 @@ export default {
             });
         }
       }
-      --- End Commented Out --- */
+      // --- END UNCOMMENT ORIGINAL LOGIC ---
     } else {
         console.log(`[Worker No Match] Condition NOT met for /api/chat POST. Falling through to static assets.`);
         
