@@ -2,29 +2,40 @@
 
 # 基本依赖
 fastapi==0.110.0
-uvicorn==0.27.1
+# uvicorn==0.27.1 # Cloudflare Pages 不需要 uvicorn
 pydantic>=2.7,<3.0
 pydantic-settings>=2.4
 
 # LLM相关
-openai>=1.6.1,<2.0.0
+openai>=1.6.1,<2.0.0 # 用於 DeepSeek
 httpx>=0.24.1
 
 # 向量数据库
-pinecone-client==2.2.2
+# pinecone-client==2.2.2
 
 # 工具库
-python-dotenv>=1.0.0
-sse-starlette==1.6.5
-
-# 核心依赖
-langchain-community==0.2.0
-langchain==0.2.0
-
-# 工具库
+python-dotenv>=1.0.0 # Cloudflare 環境變數優先，但保留無妨
+sse-starlette==1.6.5 # 如果 chat.py 需要處理 SSE
 loguru>=0.7.0
-python-multipart==0.0.9
+python-multipart==0.0.9 # 如果 chat.py 需要處理 multipart/form-data
 
-# RAG
-chromadb>=0.5.0
-sentence-transformers>=2.2.0 
+# Langchain 核心 (如果 chat.py 確實有使用，否則也可移除)
+# 檢查 chat.py 是否 import langchain
+# langchain-community==0.2.0 
+# langchain==0.2.0
+# langchain-core # 核心依賴
+
+# 其他 langchain 可能需要的輕量級依賴 (視 chat.py 內容決定是否保留)
+# 例如：langchain-text-splitters 等
+
+
+# --- 以下套件已移除，因與 Cloudflare Wasm 環境不相容 或 Cloudflare 不直接需要 ---
+# uvicorn
+# pinecone-client
+# chromadb
+# sentence-transformers
+# numpy # Langchain 可能隱式依賴，若部署出錯再移除 Langchain
+# scipy
+# torch
+# onnxruntime
+# scikit-learn 
