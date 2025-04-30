@@ -138,41 +138,46 @@ def generate_chat_response(messages, api_key):
 # Cloudflare Pages Functions 的入口點 (處理 POST 請求)
 # context 包含請求資訊、環境變數等
 async def onRequestPost(context):
+    print("onRequestPost 函數被呼叫！(調試)") # 添加日誌方便追蹤
     try:
-        request = context.request
-        request_body = await request.json()
-        messages = request_body.get('messages', [])
-        
-        if not messages:
-             error_response = {"error": "请求体中缺少 'messages' 字段或为空"}
-             # return Response(json.dumps(error_response), status=400, headers={"Content-Type": "application/json"})
-             return {"status": 400, "body": json.dumps(error_response).encode('utf-8'), "headers": {"Content-Type": "application/json"}}
+        # 嘗試讀取請求體，但即使失敗也返回成功
+        try:
+            request = context.request
+            request_body = await request.json()
+            print(f"收到請求體: {request_body}")
+        except Exception as e:
+            print(f"讀取請求體時出錯 (但不中斷調試): {e}")
 
-        # 從 context 獲取環境變數 (API Key)
-        api_key = context.env.DEEPSEEK_API_KEY
+        # 直接返回一個固定的成功響應
+        debug_response = {"message": "POST request received successfully (debug)"}
         
-        # 調用核心邏輯
-        # 注意：generate_chat_response 內部需要返回 Cloudflare 的 Response 對象
-        # 目前它返回字典，我們在這裡轉換
-        result = generate_chat_response(messages, api_key)
-        
-        # 假設 Response 類存在
-        # from cloudflare import Response 
-        # return Response(result["body"], status=result["status"], headers=result["headers"])
-        
-        # 為了讓它能被創建，返回一個模擬的 Response 結構 (這在實際環境中不起作用)
-        # 實際部署時需要確保 Cloudflare 環境提供 Response 類
-        print(f"Simulating Response: status={result['status']}, headers={result['headers']}")
-        return {"placeholder_response": True, **result} # 返回一個字典
+        # Cloudflare Pages 會自動將字典轉換為 JSON Response
+        # 並且狀態碼預設為 200
+        return debug_response 
 
-    except json.JSONDecodeError:
-        error_response = {"error": "无效的 JSON 请求体"}
-        # return Response(json.dumps(error_response), status=400, headers={"Content-Type": "application/json"})
-        return {"status": 400, "body": json.dumps(error_response).encode('utf-8'), "headers": {"Content-Type": "application/json"}}
     except Exception as e:
-        print(f"處理 POST 請求時發生未知錯誤: {e}")
-        error_response = {"error": "內部伺服器錯誤"}
+        print(f"onRequestPost 發生未知錯誤: {e}")
+        # 即使在調試模式下也嘗試返回錯誤結構
+        error_response = {"error": "內部伺服器錯誤 (調試模式)"}
+        # 這裡返回字典，Cloudflare 會處理成 status 500
+        # 或者我們可以顯式構造 Response (如果 Response 類可用)
+        # from cloudflare import Response # 假設導入
         # return Response(json.dumps(error_response), status=500, headers={"Content-Type": "application/json"})
-        return {"status": 500, "body": json.dumps(error_response).encode('utf-8'), "headers": {"Content-Type": "application/json"}}
+        return error_response # 返回字典，讓 CF 自動處理狀態碼
+
+# 為了確保 Cloudflare 找到入口點，可以也定義一個通用的 onRequest
+# 如果 onRequestPost 沒有被正確識別，它可能會回退到 onRequest
+# 但根據文件，onRequestPost 應該優先
+# async def onRequest(context):
+#    print("onRequest (通用) 函數被呼叫！(調試)")
+#    if context.request.method == "POST":
+#        return await onRequestPost(context)
+#    else:
+#        # 對於非 POST 請求返回 405
+#        return Response(f"{context.request.method} method not allowed for /api/chat", status=405)
+
+# 移除舊的 generate_chat_response 函數以保持簡潔
+# def generate_chat_response(messages, api_key):
+#     ... (舊代碼) ...
 
 # 注意：不再需要 if __name__ == "__main__": 和 HTTPServer 部分 
