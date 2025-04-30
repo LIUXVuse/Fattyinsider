@@ -248,7 +248,7 @@
                  aiContentSpan.innerHTML += " <span class='error-message'>(讀取回應時發生錯誤)</span>";
             } finally {
                  aiContentSpan.classList.remove('typing-cursor'); // 移除游標
-                 messageHistory.push({ role: "ai", content: fullResponse }); // 將完整 AI 回應添加到歷史
+                 messageHistory.push({ role: "assistant", content: fullResponse }); // 將 'ai' 改為 'assistant'
                  console.log("Final AI message added to history.");
                  sendButton.disabled = false; // 重新啟用按鈕
                  loadingIndicator.classList.remove('active'); // 隱藏加載指示器
@@ -279,7 +279,7 @@
 
                 // 使用 Markdown 渲染
                 aiContentSpan.innerHTML = DOMPurify.sanitize(marked.parse(aiText));
-                messageHistory.push({ role: "ai", content: aiText }); // 添加到歷史
+                messageHistory.push({ role: "assistant", content: aiText }); // 將 'ai' 改為 'assistant'
 
             } catch (error) {
                  console.error("Error parsing JSON response:", error);
@@ -349,7 +349,7 @@
                       const aiContentSpan = aiMessageDiv.querySelector('span');
                       aiContentSpan.classList.remove('typing-cursor');
                       aiContentSpan.innerHTML = DOMPurify.sanitize(marked.parse(aiText)); // 嘗試渲染
-                      messageHistory.push({ role: "ai", content: aiText });
+                      messageHistory.push({ role: "assistant", content: aiText });
                       sendButton.disabled = false;
                       loadingIndicator.classList.remove('active');
                  }
