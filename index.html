@@ -34,17 +34,18 @@
         body {
             font-family: 'Microsoft JhengHei', '微軟正黑體', sans-serif;
             display: flex; /* Use flex for overall layout */
-            height: 100vh;
+            min-height: 100vh; /* Use min-height instead of fixed height */
             margin: 0;
             background-color: var(--bg-main);
             color: var(--text-primary);
-            overflow: hidden; /* Prevent body scrolling */
+            /* overflow: hidden; Removed to allow potential body scroll on mobile */
         }
 
         #main-container {
             display: flex;
             width: 100%;
-            height: 100%;
+            flex-grow: 1; /* Allow main container to grow */
+            min-height: 0; /* Needed for flex children height calculation */
         }
 
         #left-panel {
@@ -301,7 +302,8 @@
         @media (max-width: 768px) {
             #main-container {
                 flex-direction: column;
-                overflow: auto; /* Allow scrolling on small screens */
+                height: 100vh; /* Try setting height for mobile */
+                /* overflow: auto; Replaced by height */
             }
             #left-panel {
                 width: 100%;
@@ -313,16 +315,21 @@
                 overflow-y: visible;
             }
             #right-panel {
-                 height: auto;
-                 flex-grow: 1;
-                 /* Ensure right panel takes remaining height */
-                 min-height: 0;
+                display: flex; /* Ensure right panel is a flex container */
+                flex-direction: column; /* Stack chatbox and input */
+                height: auto;
+                flex-grow: 1;
+                /* Ensure right panel takes remaining height */
+                min-height: 0;
+                overflow: hidden; /* Prevent internal overflow issues */
             }
             #chatbox {
-                 min-height: 300px; /* Ensure chatbox has some min height */
+                flex-grow: 1; /* Allow chatbox to take available space */
+                overflow-y: auto; /* Keep chatbox scrollable */
+                /* min-height: 300px; Removed */
             }
             .message {
-                 max-width: 90%;
+                max-width: 90%;
             }
         }
 
