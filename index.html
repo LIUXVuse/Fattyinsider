@@ -326,6 +326,75 @@
             }
         }
 
+        /* Age Verification Modal Styles */
+        #age-verification-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8); /* Darker overlay */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000; /* Ensure it's on top */
+            backdrop-filter: blur(5px); /* Optional: blur background */
+        }
+        #age-verification-modal {
+            background-color: var(--bg-panel-left); /* Use panel background */
+            padding: 35px 40px;
+            border-radius: 15px;
+            text-align: center;
+            max-width: 450px;
+            width: 90%;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+            border: 1px solid var(--border-color);
+        }
+        #age-verification-modal h2 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+            font-size: 1.6em;
+        }
+        #age-verification-modal p {
+            margin-bottom: 30px;
+            color: var(--text-secondary);
+            font-size: 1.1em;
+            line-height: 1.7;
+        }
+        .age-verification-buttons {
+            display: flex;
+            justify-content: space-around; /* Space out buttons */
+            gap: 20px; /* Add gap between buttons */
+            flex-wrap: wrap; /* Allow wrapping on small screens */
+        }
+        .age-verification-buttons button {
+            padding: 12px 25px;
+            border: none;
+            border-radius: 25px; /* Match send button */
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: 600;
+            transition: background-color 0.2s ease, transform 0.1s ease;
+            min-width: 150px; /* Ensure minimum button width */
+        }
+        #confirm-age-reject {
+            background-color: var(--error-color); /* Reddish for reject */
+            color: var(--bg-main);
+        }
+        #confirm-age-reject:hover {
+            background-color: #d84a5a; /* Darker red on hover */
+            transform: scale(1.03);
+        }
+        #confirm-age-accept {
+            background-color: var(--text-link); /* Use link color for accept */
+            color: var(--bg-main);
+        }
+        #confirm-age-accept:hover {
+            background-color: var(--button-hover-bg); /* Use existing hover */
+            transform: scale(1.03);
+        }
+
     </style>
      <!-- 引入 Marked.js -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -386,12 +455,27 @@
         </div>
     </div>
 
+    <!-- Age Verification Modal -->
+    <div id="age-verification-overlay">
+        <div id="age-verification-modal">
+            <h2>🔞 駕駛資格確認 🔞</h2>
+            <p>請問這位老司機，你是否已年滿十八歲，<br>具備合法上路的資格了呢？</p>
+            <div class="age-verification-buttons">
+                <button id="confirm-age-reject">未滿18歲 請甩尾往左 (確定)</button>
+                <button id="confirm-age-accept">師傅嘗試切他中路 (確定)</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const chatbox = document.getElementById('chatbox');
         const userInput = document.getElementById('userInput');
         const sendButton = document.getElementById('sendButton');
         const loadingIndicator = document.getElementById('loading');
         const hybridModeToggle = document.getElementById('hybridModeToggle'); // Get toggle checkbox
+        const ageVerificationOverlay = document.getElementById('age-verification-overlay');
+        const acceptButton = document.getElementById('confirm-age-accept');
+        const rejectButton = document.getElementById('confirm-age-reject');
 
         let messageHistory = [
              //{ role: "system", content: "You are FattyInsiderAI, a helpful assistant. 你總是使用繁體中文回答問題。" },
@@ -619,6 +703,27 @@
 
          // 初始化時清理可能的陳舊游標
         document.querySelectorAll('.typing-cursor').forEach(el => el.classList.remove('typing-cursor'));
+
+        // --- Age Verification Logic ---
+        document.addEventListener('DOMContentLoaded', () => {
+            // Show the modal immediately
+            ageVerificationOverlay.style.display = 'flex';
+
+            acceptButton.addEventListener('click', () => {
+                ageVerificationOverlay.style.display = 'none'; // Hide modal
+            });
+
+            rejectButton.addEventListener('click', () => {
+                // Try to close the window/tab
+                // Note: Might be blocked by browser depending on context
+                window.close();
+                // Fallback: If close fails, redirect or show message
+                // For example, redirect to a safe page:
+                // window.location.href = 'about:blank';
+                // Or display a message within the modal:
+                 // rejectButton.parentElement.parentElement.innerHTML = '<h2>掰掰！等你長大再來！</h2>';
+            });
+        });
     </script>
 </body>
 </html> 
