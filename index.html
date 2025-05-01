@@ -302,8 +302,8 @@
         @media (max-width: 768px) {
             #main-container {
                 flex-direction: column;
-                height: 100vh; /* Try setting height for mobile */
-                /* overflow: auto; Replaced by height */
+                /* height: 100vh; Reverted */
+                overflow: auto; /* Restore scrolling for the container */
             }
             #left-panel {
                 width: 100%;
@@ -317,11 +317,10 @@
             #right-panel {
                 display: flex; /* Ensure right panel is a flex container */
                 flex-direction: column; /* Stack chatbox and input */
-                height: auto;
-                flex-grow: 1;
-                /* Ensure right panel takes remaining height */
-                min-height: 0;
-                overflow: hidden; /* Prevent internal overflow issues */
+                /* height: auto; */
+                flex-grow: 1; /* Keep flex-grow */
+                min-height: 0; /* Keep min-height for flex */
+                /* overflow: hidden; Reverted */
             }
             #chatbox {
                 flex-grow: 1; /* Allow chatbox to take available space */
