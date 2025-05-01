@@ -47,3 +47,6 @@ node_modules/ # 以防萬一有殘留
 # 特定工具
 .mypy_cache/
 .ruff_cache/ 
+
+# 特定文件
+.dev.vars
