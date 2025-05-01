@@ -138,53 +138,54 @@ async function callDeepseek(apiKey, messages, autoRagAnswer = null, searchResult
     console.log("[Worker Deepseek] Calling Deepseek API...");
 
     // --- Construct Prompt for Deepseek ---
-    const baseSystemPrompt = "你是肥宅老司機 AI (FattyInsiderAI)，一個服務於台灣成年向 Podcast 節目「肥宅老司機」的助理。你的回答風格應該輕鬆有趣。請總是使用繁體中文回答。";
-    let finalSystemPrompt = baseSystemPrompt;
+    let finalSystemPrompt;
     let addedInfo = false; // Flag to track if any useful info was added
 
-    finalSystemPrompt += "\n\n請整合以下資訊來回答使用者的問題：";
+    // Check if we have any context (RAG answer, Search results, or even a RAG error counts as context)
+    const hasContext = autoRagAnswer || searchResults || autoRagError;
+    const isDeepseekOnlyMode = !hasContext; // Helper variable
 
-    if (autoRagAnswer) {
-        finalSystemPrompt += `\n\n1. **節目摘要重點 (請優先參考此內容回答節目相關問題，並盡可能保留如 '(出自 S3EPXX)' 的來源標註)**:\n---\n${autoRagAnswer}\n---`;
-        addedInfo = true;
-    } else if (autoRagError) {
-        // AutoRAG failed, inform Deepseek
-        // Include a sanitized/simplified error if needed, or just a generic message
-        // const sanitizedError = autoRagError.length > 100 ? autoRagError.substring(0, 100) + '...' : autoRagError;
-        finalSystemPrompt += `\n\n1. **注意：無法從節目摘要資料庫獲取相關資訊。** 請主要根據以下網路搜尋結果和你的通用知識回答。`;
-         console.log(`[Worker Deepseek DEBUG] AutoRAG failed with error: ${autoRagError}`); // Log the original error
+    if (hasContext) {
+        // Use the detailed prompt for RAG/Hybrid modes
+        finalSystemPrompt = "你是肥宅老司機 AI (FattyInsiderAI)，一個服務於台灣成年向 Podcast 節目「肥宅老司機」的助理。你的回答風格應該輕鬆有趣。請總是使用繁體中文回答。";
+        finalSystemPrompt += "\n\n請整合以下資訊來回答使用者的問題：";
+
+        if (autoRagAnswer) {
+            finalSystemPrompt += `\n\n1. **節目摘要重點 (請優先參考此內容回答節目相關問題，並盡可能保留如 '(出自 S3EPXX)' 的來源標註)**:\n---\n${autoRagAnswer}\n---`;
+            addedInfo = true;
+        } else if (autoRagError) {
+            finalSystemPrompt += `\n\n1. **注意：無法從節目摘要資料庫獲取相關資訊。** 請主要根據以下網路搜尋結果和你的通用知識回答。`;
+             console.log(`[Worker Deepseek DEBUG] AutoRAG failed with error: ${autoRagError}`); // Log the original error
+        } else {
+            finalSystemPrompt += `\n\n1. **節目摘要資料庫中未找到相關資訊。** 請主要根據以下網路搜尋結果和你的通用知識回答。`;
+        }
+
+        if (searchResults) {
+            finalSystemPrompt += `\n\n2. **網路搜尋結果 (用於補充時事、通用知識或節目未提及的細節)**:\n---\n${searchResults}\n---`;
+            addedInfo = true;
+        } else {
+            if (!autoRagAnswer && hasContext) { // Add note only if RAG context was expected but missing/failed
+                finalSystemPrompt += `\n\n2. **網路搜尋也未執行或未找到結果。**`;
+            }
+        }
+
+        // Final instruction based on what info was available
+        if (addedInfo) {
+             finalSystemPrompt += "\n\n請用自然、口語化的方式綜合以上資訊，提供一個完整且有趣的回答。";
+             if (autoRagAnswer && searchResults) { // Only add conflict instruction if both are present
+                 finalSystemPrompt += "如果節目摘要和網路搜尋結果有衝突，請優先採信節目摘要的內容，或婉轉指出可能的差異。";
+             } else if (autoRagAnswer) {
+                 finalSystemPrompt += "請盡可能保留如 '(出自 S3EPXX)' 的來源標註。";
+             }
+        } else {
+             // Neither RAG nor Search provided info, but AutoRAG might have failed
+             finalSystemPrompt += "\n\n請根據你的通用知識回答。";
+        }
     } else {
-        // AutoRAG didn't fail but returned null/empty answer
-        finalSystemPrompt += `\n\n1. **節目摘要資料庫中未找到相關資訊。** 請主要根據以下網路搜尋結果和你的通用知識回答。`;
+         // No context provided (Deepseek-only mode)
+         finalSystemPrompt = "你是一個使用繁體中文回答問題的通用 AI 助理。請直接、準確地回答使用者的問題。如果使用者要求翻譯，請在回答中同時提供原文和譯文以方便對照。";
+         console.log("[Worker Deepseek DEBUG] Using generic system prompt for Deepseek-only mode.");
     }
-
-    if (searchResults) {
-        finalSystemPrompt += `\n\n2. **網路搜尋結果 (用於補充時事、通用知識或節目未提及的細節)**:\n---\n${searchResults}\n---`;
-        addedInfo = true;
-    } else {
-        // Add a note if search was skipped or failed only if AutoRAG info was also missing/failed
-         if (!autoRagAnswer) {
-             finalSystemPrompt += `\n\n2. **網路搜尋也未執行或未找到結果。**`;
-         }
-    }
-
-    // Final instruction based on what info was available
-    if (addedInfo) {
-         finalSystemPrompt += "\n\n請用自然、口語化的方式綜合以上資訊，提供一個完整且有趣的回答。";
-         if (autoRagAnswer && searchResults) { // Only add conflict instruction if both are present
-             finalSystemPrompt += "如果節目摘要和網路搜尋結果有衝突，請優先採信節目摘要的內容，或婉轉指出可能的差異。";
-         } else if (autoRagAnswer) {
-             finalSystemPrompt += "請盡可能保留如 '(出自 S3EPXX)' 的來源標註。";
-         }
-    } else {
-         // Neither AutoRAG nor Search provided info, and AutoRAG might have failed
-         finalSystemPrompt += "\n\n請根據你的通用知識回答。";
-         if (autoRagError) {
-             // Optional: Add a note about the failure in the final instruction too?
-             // finalSystemPrompt += " (無法訪問節目摘要資料庫)";
-         }
-    }
-
 
     // Prepare messages for Deepseek: Add the constructed system prompt and user/assistant history
     let messagesForDeepseek = [{ role: "system", content: finalSystemPrompt }];
@@ -280,7 +281,20 @@ async function handleChatRequest(request, env) {
     const conversationHistory = messages.filter(msg => msg.role !== 'system');
 
     try {
-        if (mode === 'hybrid') {
+        if (mode === 'deepseek') {
+            console.log("[Worker Logic] Entering Deepseek-Only Mode...");
+            if (!DEEPSEEK_API_KEY) {
+                console.error("[Worker ENV] DEEPSEEK_API_KEY is missing for Deepseek-only mode.");
+                return new Response(JSON.stringify({ error: "後端 Deepseek API 金鑰未設定" }), { status: 500, headers: { "Content-Type": "application/json" } });
+            }
+
+            // Call Deepseek directly without RAG or Search context
+            const deepseekAnswer = await callDeepseek(DEEPSEEK_API_KEY, [...conversationHistory], null, null, null);
+            const formattedResponse = formatResponse(deepseekAnswer);
+            console.log("[Worker Logic DEBUG] Sending formatted Deepseek response to client (Deepseek-Only Mode).");
+            return new Response(JSON.stringify(formattedResponse), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+        } else if (mode === 'hybrid') {
             console.log("[Worker Logic] Entering Hybrid Mode (AutoRAG -> Serper -> Deepseek)...");
             if (!DEEPSEEK_API_KEY) {
                 console.error("[Worker ENV] DEEPSEEK_API_KEY is missing for Hybrid mode.");

@@ -2,7 +2,7 @@
 
 ## 項目概述
 
-肥宅老司機 AI 聊天機器人是一個聊天應用，旨在為「肥宅老司機」Podcast 的聽眾提供一個互動界面。此應用利用 **Cloudflare AutoRAG** 整合節目內容摘要，並可選用 **Serper.dev** 進行網路搜尋，最終透過 **Deepseek API** 生成回應。應用程式透過 **Cloudflare Pages** 部署。
+肥宅老司機 AI 聊天機器人是一個聊天應用，旨在為「肥宅老司機」Podcast 的聽眾提供一個互動界面。此應用利用 **Cloudflare AutoRAG** 整合節目內容摘要，並可選用 **Serper.dev** 進行網路搜尋，或直接使用 **Deepseek API** 進行通用 AI 回應。應用程式透過 **Cloudflare Pages** 部署。
 
 *最後更新時間: 2025/05/01*
 
@@ -11,10 +11,10 @@
 - **前端**: `index.html` (位於專案根目錄)，包含 HTML, CSS, 和 JavaScript。特色：
     - 暗黑主題的左右分欄介面 (左側資訊/Logo，右側聊天)。
     - 載入時有年齡確認彈窗。
-    - 提供模式切換選項 (核取方塊) 以啟用「混合模式」。
-- **後端 (請求處理)**: `_worker.js` (使用 Cloudflare Pages Advanced Mode) 負責：
+    - 提供模式切換選項 (單選按鈕) 可選擇「純情 RAG (預設)」、「混和動力」或「通用模式 (Deepseek)」。
+    - 支援 Shift+Enter 換行。
+- **後端 (請求處理)**: `_worker.js` (使用 Cloudflare Pages Advanced Mode) 處理 `/api/chat` 請求，根據前端選擇的模式 (`autorag`, `hybrid`, `deepseek`) 執行不同邏輯：
     - 提供靜態前端文件 (`index.html` 等)。
-    - 接收前端 `/api/chat` 請求，包含使用者訊息和選擇的模式 (`autorag` 或 `hybrid`)。
     - **AutoRAG 模式 (預設)**:
         1. 呼叫 **Cloudflare AutoRAG** 的 `/ai-search` 端點，傳遞使用者查詢。
         2. 將 AutoRAG (內建 LLM) 生成的回應直接回傳給前端。
@@ -23,16 +23,24 @@
         2. **(如果 `SERPER_API_KEY` 存在)** 呼叫 **Serper.dev API** 進行網路搜尋。
         3. 將使用者原始問題、AutoRAG 的回答 (或錯誤訊息)、網路搜尋結果 (如果有的話) 傳遞給 **Deepseek API** (`deepseek-chat` 模型) 進行最終的整合與潤飾。
         4. 將 Deepseek 的回應回傳給前端。
-- **後端 (資料處理)**:
+    - **通用模式 (Deepseek Mode)**:
+        1. **(如果 `DEEPSEEK_API_KEY` 存在)** 直接呼叫 **Deepseek API** (`deepseek-chat` 模型)，使用通用型系統提示 (包含翻譯時提供原文對照的指示)。
+        2. 將 Deepseek 的回應回傳給前端。
+- **後端 (資料處理 & AI 模型)**:
     - **Cloudflare AutoRAG**: 持續從 R2 儲存桶 (`fattyinsider`) 同步、處理 `.md` 檔案，管理 Vectorize 索引，並透過 `/ai-search` 提供 RAG 生成服務。
     - **Serper.dev**: 提供即時網路搜尋結果。
-    - **Deepseek**: 提供最終的語言生成與整合能力。
-- **資料來源**: 存放在 Cloudflare R2 儲存桶 (`fattyinsider`) 中的 Markdown 格式節目摘要。
-- **運行環境**: Cloudflare Pages (使用 `_worker.js` 進階模式) + Cloudflare AutoRAG + (外部) Serper.dev API + (外部) Deepseek API。
-- **部署**: 自動從 GitHub (`master` 分支) 部署。
-- **核心功能**: 提供兩種模式的聊天：快速的純 AutoRAG 回應，以及更全面、結合網路搜尋的混合模式回應 (由 Deepseek 整合)。混合模式包含對 AutoRAG 錯誤的處理機制。
+    - **Deepseek**: 提供整合 RAG/搜尋結果或獨立的通用語言生成能力。
+- **主要資料來源**: 存放在 Cloudflare R2 儲存桶 (`fattyinsider`) 中的 Markdown 格式節目摘要 (用於 RAG 和混合模式)。
+- **運行環境**: Cloudflare Pages (使用 `_worker.js` 進階模式), Cloudflare AutoRAG, (外部) Serper.dev API, (外部) Deepseek API。
+- **部署**: 自動從 GitHub (`master` 分支) 部署至 Cloudflare Pages。
+- **核心功能**: 提供三種模式的聊天：
+    1. **純情 RAG**: 快速、基於節目摘要的回應 (AutoRAG)。
+    2. **混和動力**: 結合節目摘要、網路搜尋的全面回應 (AutoRAG + Serper + Deepseek)，包含 RAG 錯誤處理。
+    3. **通用模式**: 直接使用 Deepseek 進行翻譯、寫作等通用任務。
 
-## AutoRAG 整合流程
+## 重要設定與流程
+
+### AutoRAG 整合流程 (用於 RAG 與混合模式)
 
 1.  **資料準備 (使用 `rename_txt_to_md.py`)**: 
     - 將新的節目摘要檔案 (假設是 `.txt` 格式) 放入指定的資料夾 (例如 `S3EP201_204/`)。
@@ -48,13 +56,10 @@
 4.  **設定環境變數**: 在 Cloudflare Pages 專案設定中，添加以下環境變數：
     - `AUTORAG_ENDPOINT`: AutoRAG 實例的 API 端點 URL。
     - `AUTORAG_API_TOKEN`: 建立的 Service API Token 的值 (設為 Secret)。
-    - `DEEPSEEK_API_KEY`: (混合模式需要) 你的 Deepseek API 金鑰 (設為 Secret)。
+    - `DEEPSEEK_API_KEY`: (混合模式**及通用模式**需要) 你的 Deepseek API 金鑰 (設為 Secret)。
     - `SERPER_API_KEY`: (混合模式需要) 你的 Serper.dev API 金鑰 (設為 Secret)。
-5.  **Worker (`_worker.js`) 邏輯**: `_worker.js` 接收前端請求，根據選擇的模式 (`autorag` 或 `hybrid`)：
-    - `autorag` 模式: 呼叫 AutoRAG 的 `/ai-search`。
-    - `hybrid` 模式: 依序嘗試呼叫 AutoRAG (`/ai-search`)、Serper.dev (如果配置了 Key)、Deepseek API，並處理 AutoRAG 可能發生的錯誤，將所有資訊傳遞給 Deepseek 整合。
 
-## 開發歷程中的主要挑戰與解決方案
+### Worker (`_worker.js`) 邏輯
 
 - **環境遷移**: 從 Vercel/Python 遷移至 Cloudflare。
 - **部署錯誤**: 經歷了 `functions` 目錄衝突、`.venv` 符號連結、405 Method Not Allowed、422 Unprocessable Content 等錯誤。

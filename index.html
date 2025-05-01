@@ -440,7 +440,16 @@
                 <!-- 對話將顯示在這裡 -->
                 <div class="message ai-message">
                     <div class="message-sender">AI</div>
-                    <span>哈囉各位老司機！我是肥宅老司機 AI，準備好跟你聊各種騷操作啦！😎<br><br><strong>預設是「純情 RAG 模式」</strong>，我會根據咱們節目摘要資料庫來回答，速度快、內容準（針對節目來說啦）。<br><br><strong>想玩點野的？</strong> 勾選下面的 <strong>「混和動力模式」</strong>！我會召喚 RAG + Deepseek + 網路搜尋三位一體，給你更全面的答案。不過這模式比較燒油（API 費用），而且要多等一下下。**靠各位大大斗內發車啦！** ⛽️<br><br><strong>溫馨提醒：</strong> 不管哪種模式，我都是 AI，偶爾會ㄎㄧㄤ掉講幹話，內容不一定百分百準確，重要資訊記得多方查證嘿！<br><br>好啦，今天想上哪條秋名山？（想聊什麼呢？）</span>
+                    <span>哈囉各位老司機！我是肥宅老司機 AI，準備好跟你聊各種騷操作啦！😎<br><br>
+                        <strong>你可以選擇以下模式：</strong>
+                        <ul>
+                            <li><strong>純情 RAG 模式 (預設)</strong>：根據節目摘要資料庫回答，速度快、內容準（針對節目）。</li>
+                            <li><strong>混和動力模式</strong>：召喚 RAG + Deepseek + 網路搜尋三位一體，給你更全面的答案。但比較燒油（API 費用），而且要多等一下下。<strong>靠各位大大斗內發車啦！</strong> ⛽️</li>
+                            <li><strong>通用模式 (Deepseek)</strong>：直接呼叫 Deepseek，適合翻譯、寫作等通用型任務，不參考節目內容。</li>
+                        </ul>
+                        <strong>溫馨提醒：</strong> 不管哪種模式，我都是 AI，偶爾會ㄎㄧㄤ掉講幹話，內容不一定百分百準確，重要資訊記得多方查證嘿！<br><br>
+                        好啦，今天想上哪條秋名山？（想聊什麼呢？）
+                    </span>
                 </div>
             </div>
 
@@ -448,8 +457,15 @@
 
             <div id="input-controls">
                 <div id="mode-toggle-area">
-                    <input type="checkbox" id="hybridModeToggle">
-                    <label for="hybridModeToggle">啟用混合模式 (AutoRAG + Deepseek + 網路搜尋) <small> (測試功能，可能消耗較多 API 額度，請斟酌使用)</small></label>
+                    <input type="radio" id="modeAutoRag" name="chatMode" value="autorag" checked>
+                    <label for="modeAutoRag">純情 RAG (預設)</label>
+
+                    <input type="radio" id="modeHybrid" name="chatMode" value="hybrid">
+                    <label for="modeHybrid">混和動力 (RAG+搜尋+Deepseek)</label>
+
+                    <input type="radio" id="modeDeepseek" name="chatMode" value="deepseek">
+                    <label for="modeDeepseek">通用 (Deepseek)</label>
+                    <br><small style="display: block; margin-top: 5px; color: var(--text-secondary); font-size: 0.8em;">提示：混和模式及通用模式會消耗 Deepseek API 額度。</small>
                 </div>
 
                 <div id="input-area">
@@ -477,7 +493,6 @@
         const userInput = document.getElementById('userInput');
         const sendButton = document.getElementById('sendButton');
         const loadingIndicator = document.getElementById('loading');
-        const hybridModeToggle = document.getElementById('hybridModeToggle'); // Get toggle checkbox
         const ageVerificationOverlay = document.getElementById('age-verification-overlay');
         const acceptButton = document.getElementById('confirm-age-accept');
         const rejectButton = document.getElementById('confirm-age-reject');
@@ -487,7 +502,7 @@
              //{ role: "system", content: "You are FattyInsiderAI, a helpful assistant. Always reply in Traditional Chinese." },
              { role: "system", content: "你是肥宅老司機 AI (FattyInsiderAI)，一個服務於台灣成年向 Podcast 節目「肥宅老司機」的助理。你的回答風格應該輕鬆有趣。請總是使用繁體中文回答。未來你將能參考節目摘要來回答關於節目的具體問題。" }, // New Prompt
              //{ role: "assistant", content: "你好！我是肥宅老司機 AI，有什麼可以幫你的嗎？" }
-             { role: "assistant", content: "哈囉各位老司機！我是肥宅老司機 AI，準備好跟你聊各種騷操作啦！😎\n\n**預設是「純情 RAG 模式」**，我會根據咱們節目摘要資料庫來回答，速度快、內容準（針對節目來說啦）。\n\n**想玩點野的？** 勾選下面的 **「混和動力模式」**！我會召喚 RAG + Deepseek + 網路搜尋三位一體，給你更全面的答案。不過這模式比較燒油（API 費用），而且要多等一下下。**靠各位大大斗內發車啦！** ⛽️\n\n**溫馨提醒：** 不管哪種模式，我都是 AI，偶爾會ㄎㄧㄤ掉講幹話，內容不一定百分百準確，重要資訊記得多方查證嘿！\n\n好啦，今天想上哪條秋名山？（想聊什麼呢？）" } // Updated JS history
+             { role: "assistant", content: "哈囉各位老司機！我是肥宅老司機 AI，準備好跟你聊各種騷操作啦！😎\n\n**你可以選擇以下模式：**\n*   **純情 RAG 模式 (預設)**：根據節目摘要資料庫回答，速度快、內容準（針對節目）。\n*   **混和動力模式**：召喚 RAG + Deepseek + 網路搜尋三位一體，給你更全面的答案。但比較燒油（API 費用），而且要多等一下下。**靠各位大大斗內發車啦！** ⛽️\n*   **通用模式 (Deepseek)**：直接呼叫 Deepseek，適合翻譯、寫作等通用型任務，不參考節目內容。\n\n**溫馨提醒：** 不管哪種模式，我都是 AI，偶爾會ㄎㄧㄤ掉講幹話，內容不一定百分百準確，重要資訊記得多方查證嘿！\n\n好啦，今天想上哪條秋名山？（想聊什麼呢？）" } // Final JS history with all modes
         ];
 
         function appendMessage(sender, text, isHtml = false, isTyping = false) {
@@ -631,7 +646,9 @@
             const aiMessageDiv = appendMessage('ai', '', false, true); // isTyping = true
 
              // --- 準備請求 Payload --- 
-             const currentMode = hybridModeToggle.checked ? 'hybrid' : 'autorag'; // Get current mode
+             // Get selected mode from radio buttons
+             const selectedModeInput = document.querySelector('input[name="chatMode"]:checked');
+             const currentMode = selectedModeInput ? selectedModeInput.value : 'autorag'; // Default to autorag if somehow none selected
              console.log("Sending request with mode:", currentMode);
 
              // 過濾掉 type="system" 的消息，僅發送對話歷史
@@ -701,7 +718,9 @@
 
         sendButton.addEventListener('click', sendMessage);
         userInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
+            // Send message on Enter, but allow newline on Shift+Enter
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault(); // Prevent default Enter behavior (like form submission or newline)
                 sendMessage();
             }
         });

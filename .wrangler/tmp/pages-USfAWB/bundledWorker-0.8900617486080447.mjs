@@ -117,54 +117,59 @@ __name(callSerperSearch, "callSerperSearch");
 async function callDeepseek(apiKey, messages, autoRagAnswer = null, searchResults = null, autoRagError = null) {
   const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions";
   console.log("[Worker Deepseek] Calling Deepseek API...");
-  const baseSystemPrompt = "\u4F60\u662F\u80A5\u5B85\u8001\u53F8\u6A5F AI (FattyInsiderAI)\uFF0C\u4E00\u500B\u670D\u52D9\u65BC\u53F0\u7063\u6210\u5E74\u5411 Podcast \u7BC0\u76EE\u300C\u80A5\u5B85\u8001\u53F8\u6A5F\u300D\u7684\u52A9\u7406\u3002\u4F60\u7684\u56DE\u7B54\u98A8\u683C\u61C9\u8A72\u8F15\u9B06\u6709\u8DA3\u3002\u8ACB\u7E3D\u662F\u4F7F\u7528\u7E41\u9AD4\u4E2D\u6587\u56DE\u7B54\u3002";
-  let finalSystemPrompt = baseSystemPrompt;
+  let finalSystemPrompt;
   let addedInfo = false;
-  finalSystemPrompt += "\n\n\u8ACB\u6574\u5408\u4EE5\u4E0B\u8CC7\u8A0A\u4F86\u56DE\u7B54\u4F7F\u7528\u8005\u7684\u554F\u984C\uFF1A";
-  if (autoRagAnswer) {
-    finalSystemPrompt += `
+  const hasContext = autoRagAnswer || searchResults || autoRagError;
+  const isDeepseekOnlyMode = !hasContext;
+  if (hasContext) {
+    finalSystemPrompt = "\u4F60\u662F\u80A5\u5B85\u8001\u53F8\u6A5F AI (FattyInsiderAI)\uFF0C\u4E00\u500B\u670D\u52D9\u65BC\u53F0\u7063\u6210\u5E74\u5411 Podcast \u7BC0\u76EE\u300C\u80A5\u5B85\u8001\u53F8\u6A5F\u300D\u7684\u52A9\u7406\u3002\u4F60\u7684\u56DE\u7B54\u98A8\u683C\u61C9\u8A72\u8F15\u9B06\u6709\u8DA3\u3002\u8ACB\u7E3D\u662F\u4F7F\u7528\u7E41\u9AD4\u4E2D\u6587\u56DE\u7B54\u3002";
+    finalSystemPrompt += "\n\n\u8ACB\u6574\u5408\u4EE5\u4E0B\u8CC7\u8A0A\u4F86\u56DE\u7B54\u4F7F\u7528\u8005\u7684\u554F\u984C\uFF1A";
+    if (autoRagAnswer) {
+      finalSystemPrompt += `
 
 1. **\u7BC0\u76EE\u6458\u8981\u91CD\u9EDE (\u8ACB\u512A\u5148\u53C3\u8003\u6B64\u5167\u5BB9\u56DE\u7B54\u7BC0\u76EE\u76F8\u95DC\u554F\u984C\uFF0C\u4E26\u76E1\u53EF\u80FD\u4FDD\u7559\u5982 '(\u51FA\u81EA S3EPXX)' \u7684\u4F86\u6E90\u6A19\u8A3B)**:
 ---
 ${autoRagAnswer}
 ---`;
-    addedInfo = true;
-  } else if (autoRagError) {
-    finalSystemPrompt += `
+      addedInfo = true;
+    } else if (autoRagError) {
+      finalSystemPrompt += `
 
 1. **\u6CE8\u610F\uFF1A\u7121\u6CD5\u5F9E\u7BC0\u76EE\u6458\u8981\u8CC7\u6599\u5EAB\u7372\u53D6\u76F8\u95DC\u8CC7\u8A0A\u3002** \u8ACB\u4E3B\u8981\u6839\u64DA\u4EE5\u4E0B\u7DB2\u8DEF\u641C\u5C0B\u7D50\u679C\u548C\u4F60\u7684\u901A\u7528\u77E5\u8B58\u56DE\u7B54\u3002`;
-    console.log(`[Worker Deepseek DEBUG] AutoRAG failed with error: ${autoRagError}`);
-  } else {
-    finalSystemPrompt += `
+      console.log(`[Worker Deepseek DEBUG] AutoRAG failed with error: ${autoRagError}`);
+    } else {
+      finalSystemPrompt += `
 
 1. **\u7BC0\u76EE\u6458\u8981\u8CC7\u6599\u5EAB\u4E2D\u672A\u627E\u5230\u76F8\u95DC\u8CC7\u8A0A\u3002** \u8ACB\u4E3B\u8981\u6839\u64DA\u4EE5\u4E0B\u7DB2\u8DEF\u641C\u5C0B\u7D50\u679C\u548C\u4F60\u7684\u901A\u7528\u77E5\u8B58\u56DE\u7B54\u3002`;
-  }
-  if (searchResults) {
-    finalSystemPrompt += `
+    }
+    if (searchResults) {
+      finalSystemPrompt += `
 
 2. **\u7DB2\u8DEF\u641C\u5C0B\u7D50\u679C (\u7528\u65BC\u88DC\u5145\u6642\u4E8B\u3001\u901A\u7528\u77E5\u8B58\u6216\u7BC0\u76EE\u672A\u63D0\u53CA\u7684\u7D30\u7BC0)**:
 ---
 ${searchResults}
 ---`;
-    addedInfo = true;
-  } else {
-    if (!autoRagAnswer) {
-      finalSystemPrompt += `
+      addedInfo = true;
+    } else {
+      if (!autoRagAnswer && hasContext) {
+        finalSystemPrompt += `
 
 2. **\u7DB2\u8DEF\u641C\u5C0B\u4E5F\u672A\u57F7\u884C\u6216\u672A\u627E\u5230\u7D50\u679C\u3002**`;
+      }
     }
-  }
-  if (addedInfo) {
-    finalSystemPrompt += "\n\n\u8ACB\u7528\u81EA\u7136\u3001\u53E3\u8A9E\u5316\u7684\u65B9\u5F0F\u7D9C\u5408\u4EE5\u4E0A\u8CC7\u8A0A\uFF0C\u63D0\u4F9B\u4E00\u500B\u5B8C\u6574\u4E14\u6709\u8DA3\u7684\u56DE\u7B54\u3002";
-    if (autoRagAnswer && searchResults) {
-      finalSystemPrompt += "\u5982\u679C\u7BC0\u76EE\u6458\u8981\u548C\u7DB2\u8DEF\u641C\u5C0B\u7D50\u679C\u6709\u885D\u7A81\uFF0C\u8ACB\u512A\u5148\u63A1\u4FE1\u7BC0\u76EE\u6458\u8981\u7684\u5167\u5BB9\uFF0C\u6216\u5A49\u8F49\u6307\u51FA\u53EF\u80FD\u7684\u5DEE\u7570\u3002";
-    } else if (autoRagAnswer) {
-      finalSystemPrompt += "\u8ACB\u76E1\u53EF\u80FD\u4FDD\u7559\u5982 '(\u51FA\u81EA S3EPXX)' \u7684\u4F86\u6E90\u6A19\u8A3B\u3002";
+    if (addedInfo) {
+      finalSystemPrompt += "\n\n\u8ACB\u7528\u81EA\u7136\u3001\u53E3\u8A9E\u5316\u7684\u65B9\u5F0F\u7D9C\u5408\u4EE5\u4E0A\u8CC7\u8A0A\uFF0C\u63D0\u4F9B\u4E00\u500B\u5B8C\u6574\u4E14\u6709\u8DA3\u7684\u56DE\u7B54\u3002";
+      if (autoRagAnswer && searchResults) {
+        finalSystemPrompt += "\u5982\u679C\u7BC0\u76EE\u6458\u8981\u548C\u7DB2\u8DEF\u641C\u5C0B\u7D50\u679C\u6709\u885D\u7A81\uFF0C\u8ACB\u512A\u5148\u63A1\u4FE1\u7BC0\u76EE\u6458\u8981\u7684\u5167\u5BB9\uFF0C\u6216\u5A49\u8F49\u6307\u51FA\u53EF\u80FD\u7684\u5DEE\u7570\u3002";
+      } else if (autoRagAnswer) {
+        finalSystemPrompt += "\u8ACB\u76E1\u53EF\u80FD\u4FDD\u7559\u5982 '(\u51FA\u81EA S3EPXX)' \u7684\u4F86\u6E90\u6A19\u8A3B\u3002";
+      }
+    } else {
+      finalSystemPrompt += "\n\n\u8ACB\u6839\u64DA\u4F60\u7684\u901A\u7528\u77E5\u8B58\u56DE\u7B54\u3002";
     }
   } else {
-    finalSystemPrompt += "\n\n\u8ACB\u6839\u64DA\u4F60\u7684\u901A\u7528\u77E5\u8B58\u56DE\u7B54\u3002";
-    if (autoRagError) {
-    }
+    finalSystemPrompt = "\u4F60\u662F\u4E00\u500B\u4F7F\u7528\u7E41\u9AD4\u4E2D\u6587\u56DE\u7B54\u554F\u984C\u7684\u901A\u7528 AI \u52A9\u7406\u3002\u8ACB\u76F4\u63A5\u3001\u6E96\u78BA\u5730\u56DE\u7B54\u4F7F\u7528\u8005\u7684\u554F\u984C\u3002\u5982\u679C\u4F7F\u7528\u8005\u8981\u6C42\u7FFB\u8B6F\uFF0C\u8ACB\u5728\u56DE\u7B54\u4E2D\u540C\u6642\u63D0\u4F9B\u539F\u6587\u548C\u8B6F\u6587\u4EE5\u65B9\u4FBF\u5C0D\u7167\u3002";
+    console.log("[Worker Deepseek DEBUG] Using generic system prompt for Deepseek-only mode.");
   }
   let messagesForDeepseek = [{ role: "system", content: finalSystemPrompt }];
   messagesForDeepseek = messagesForDeepseek.concat(messages);
@@ -238,7 +243,17 @@ async function handleChatRequest(request, env) {
   }
   const conversationHistory = messages.filter((msg) => msg.role !== "system");
   try {
-    if (mode === "hybrid") {
+    if (mode === "deepseek") {
+      console.log("[Worker Logic] Entering Deepseek-Only Mode...");
+      if (!DEEPSEEK_API_KEY) {
+        console.error("[Worker ENV] DEEPSEEK_API_KEY is missing for Deepseek-only mode.");
+        return new Response(JSON.stringify({ error: "\u5F8C\u7AEF Deepseek API \u91D1\u9470\u672A\u8A2D\u5B9A" }), { status: 500, headers: { "Content-Type": "application/json" } });
+      }
+      const deepseekAnswer = await callDeepseek(DEEPSEEK_API_KEY, [...conversationHistory], null, null, null);
+      const formattedResponse = formatResponse(deepseekAnswer);
+      console.log("[Worker Logic DEBUG] Sending formatted Deepseek response to client (Deepseek-Only Mode).");
+      return new Response(JSON.stringify(formattedResponse), { status: 200, headers: { "Content-Type": "application/json" } });
+    } else if (mode === "hybrid") {
       console.log("[Worker Logic] Entering Hybrid Mode (AutoRAG -> Serper -> Deepseek)...");
       if (!DEEPSEEK_API_KEY) {
         console.error("[Worker ENV] DEEPSEEK_API_KEY is missing for Hybrid mode.");
@@ -370,7 +385,7 @@ var jsonError = /* @__PURE__ */ __name(async (request, env, _ctx, middlewareCtx)
 }, "jsonError");
 var middleware_miniflare3_json_error_default = jsonError;
 
-// .wrangler/tmp/bundle-GT1dMP/middleware-insertion-facade.js
+// .wrangler/tmp/bundle-aM9VwY/middleware-insertion-facade.js
 var __INTERNAL_WRANGLER_MIDDLEWARE__ = [
   middleware_ensure_req_body_drained_default,
   middleware_miniflare3_json_error_default
@@ -402,7 +417,7 @@ function __facade_invoke__(request, env, ctx, dispatch, finalMiddleware) {
 }
 __name(__facade_invoke__, "__facade_invoke__");
 
-// .wrangler/tmp/bundle-GT1dMP/middleware-loader.entry.ts
+// .wrangler/tmp/bundle-aM9VwY/middleware-loader.entry.ts
 var __Facade_ScheduledController__ = class ___Facade_ScheduledController__ {
   constructor(scheduledTime, cron, noRetry) {
     this.scheduledTime = scheduledTime;
