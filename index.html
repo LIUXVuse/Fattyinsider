@@ -440,7 +440,7 @@
                 <!-- 對話將顯示在這裡 -->
                 <div class="message ai-message">
                     <div class="message-sender">AI</div>
-                    <span>哈囉肥宅！我是肥宅老司機AI，專門為你解答各種老司機的疑惑。不管什麼我都能陪你聊！今天想聊些什麼呢？😎</span>
+                    <span>哈囉各位老司機！我是肥宅老司機 AI，準備好跟你聊各種騷操作啦！😎<br><br><strong>預設是「純情 RAG 模式」</strong>，我會根據咱們節目摘要資料庫來回答，速度快、內容準（針對節目來說啦）。<br><br><strong>想玩點野的？</strong> 勾選下面的 <strong>「混和動力模式」</strong>！我會召喚 RAG + Deepseek + 網路搜尋三位一體，給你更全面的答案。不過這模式比較燒油（API 費用），而且要多等一下下。**靠各位大大斗內發車啦！** ⛽️<br><br><strong>溫馨提醒：</strong> 不管哪種模式，我都是 AI，偶爾會ㄎㄧㄤ掉講幹話，內容不一定百分百準確，重要資訊記得多方查證嘿！<br><br>好啦，今天想上哪條秋名山？（想聊什麼呢？）</span>
                 </div>
             </div>
 
@@ -487,7 +487,7 @@
              //{ role: "system", content: "You are FattyInsiderAI, a helpful assistant. Always reply in Traditional Chinese." },
              { role: "system", content: "你是肥宅老司機 AI (FattyInsiderAI)，一個服務於台灣成年向 Podcast 節目「肥宅老司機」的助理。你的回答風格應該輕鬆有趣。請總是使用繁體中文回答。未來你將能參考節目摘要來回答關於節目的具體問題。" }, // New Prompt
              //{ role: "assistant", content: "你好！我是肥宅老司機 AI，有什麼可以幫你的嗎？" }
-             { role: "assistant", content: "哈囉肥宅！我是肥宅老司機AI，專門為你解答各種老司機的疑惑。不管什麼我都能陪你聊！今天想聊些什麼呢？😎" } // Updated JS history
+             { role: "assistant", content: "哈囉各位老司機！我是肥宅老司機 AI，準備好跟你聊各種騷操作啦！😎\n\n**預設是「純情 RAG 模式」**，我會根據咱們節目摘要資料庫來回答，速度快、內容準（針對節目來說啦）。\n\n**想玩點野的？** 勾選下面的 **「混和動力模式」**！我會召喚 RAG + Deepseek + 網路搜尋三位一體，給你更全面的答案。不過這模式比較燒油（API 費用），而且要多等一下下。**靠各位大大斗內發車啦！** ⛽️\n\n**溫馨提醒：** 不管哪種模式，我都是 AI，偶爾會ㄎㄧㄤ掉講幹話，內容不一定百分百準確，重要資訊記得多方查證嘿！\n\n好啦，今天想上哪條秋名山？（想聊什麼呢？）" } // Updated JS history
         ];
 
         function appendMessage(sender, text, isHtml = false, isTyping = false) {
