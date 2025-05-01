@@ -191,6 +191,7 @@
 
         #input-area {
             display: flex;
+            align-items: flex-end; /* Align items to the bottom */
         }
         #userInput {
             flex-grow: 1;
@@ -201,6 +202,13 @@
             font-size: 1em;
             background-color: var(--bg-input-field);
             color: var(--text-primary);
+            font-family: inherit; /* Ensure textarea uses the body font */
+            resize: vertical; /* Allow vertical resizing */
+            min-height: 24px; /* Match line-height + padding approx */
+            max-height: 150px; /* Limit max height */
+            line-height: 1.5; /* Adjust line-height for textarea */
+            overflow-y: auto; /* Show scrollbar if needed */
+            box-sizing: border-box; /* Include padding in height */
         }
         #userInput::placeholder {
             color: var(--text-secondary);
@@ -469,7 +477,7 @@
                 </div>
 
                 <div id="input-area">
-                    <input type="text" id="userInput" placeholder="在這裡輸入訊息...">
+                    <textarea id="userInput" rows="1" placeholder="在這裡輸入訊息..."></textarea>
                     <button id="sendButton">發送</button>
                 </div>
             </div>
@@ -717,7 +725,8 @@
         }
 
         sendButton.addEventListener('click', sendMessage);
-        userInput.addEventListener('keypress', (e) => {
+        // Use keydown event for better modifier key handling
+        userInput.addEventListener('keydown', (e) => {
             // Send message on Enter, but allow newline on Shift+Enter
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault(); // Prevent default Enter behavior (like form submission or newline)
