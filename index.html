@@ -5,125 +5,287 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>肥宅老司機 AI</title>
     <style>
+        :root { /* Define color variables for easy theme switching */
+            --bg-main: #1a1a1a; /* Dark background */
+            --bg-panel-left: #242424; /* Slightly lighter left panel */
+            --bg-panel-right: #1a1a1a;
+            --bg-input-controls: #2e2e2e;
+            --bg-input-field: #3a3a3a;
+            --bg-ai-message: #333333;
+            --bg-user-message: #005cbf; /* Adjusted blue for dark mode */
+            --bg-code-block: #2e2e2e;
+            --bg-inline-code: #444444;
+            --bg-ack: #242424;
+            --text-primary: #e0e0e0; /* Light primary text */
+            --text-secondary: #b0b0b0; /* Lighter secondary text */
+            --text-link: #58a6ff; /* Link color */
+            --text-sender-ai: #a0a0a0;
+            --text-sender-user: #d0d0d0;
+            --text-code: #f0f0f0;
+            --border-color: #444444;
+            --border-code: #555555;
+            --shadow-color: rgba(255, 255, 255, 0.05);
+            --button-hover-bg: #004c9a;
+            --button-disabled-bg: #555555;
+            --error-color: #f97583; /* Light red for errors */
+            --cursor-color: var(--text-link);
+        }
+
         body {
             font-family: 'Microsoft JhengHei', '微軟正黑體', sans-serif;
-            display: flex;
-            flex-direction: column;
+            display: flex; /* Use flex for overall layout */
             height: 100vh;
             margin: 0;
-            background-color: #f4f4f4;
-            color: #333;
+            background-color: var(--bg-main);
+            color: var(--text-primary);
+            overflow: hidden; /* Prevent body scrolling */
         }
+
+        #main-container {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        #left-panel {
+            width: 35%; /* Adjust width as needed */
+            max-width: 400px; /* Max width for left panel */
+            height: 100%;
+            background-color: var(--bg-panel-left);
+            padding: 30px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-color);
+            overflow-y: auto; /* Allow scrolling if content overflows */
+        }
+
+        #left-panel img {
+            width: 100%;
+            max-width: 280px; /* Slightly smaller max */
+            height: auto;
+            display: block;
+            margin: 0 auto 30px auto; /* Center image */
+            border-radius: 10px; /* Rounded corners */
+            /* Removed shadow, maybe add border if needed */
+            /* border: 1px solid var(--border-color); */
+        }
+
+        #acknowledgements {
+            text-align: left;
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            flex-grow: 1;
+            margin-top: 20px;
+        }
+        #acknowledgements h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: var(--text-primary);
+            font-size: 1.2em;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
+        #acknowledgements p {
+            margin-bottom: 16px;
+            line-height: 1.7;
+        }
+        #acknowledgements a {
+            color: var(--text-link);
+            text-decoration: none;
+            font-weight: 500;
+        }
+        #acknowledgements a:hover {
+            text-decoration: underline;
+        }
+        #acknowledgements code {
+            background-color: var(--bg-inline-code);
+            padding: 3px 7px;
+            border-radius: 4px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.9em;
+            word-break: break-all;
+            display: inline-block;
+            margin: 2px 0;
+            color: var(--text-primary);
+            border: 1px solid var(--border-code);
+        }
+
+        #right-panel {
+            flex-grow: 1;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            background-color: var(--bg-panel-right);
+        }
+
         #chatbox {
             flex-grow: 1;
             overflow-y: auto;
-            padding: 20px;
-            border-bottom: 1px solid #ccc;
-            background-color: #fff;
-            margin-bottom: 10px;
+            padding: 25px;
             display: flex;
             flex-direction: column;
+            gap: 12px; /* Increased gap */
         }
         .message {
-            margin-bottom: 15px;
-            padding: 10px 15px;
-            border-radius: 18px;
-            max-width: 70%;
+            margin-bottom: 0;
+            padding: 12px 18px;
+            border-radius: 20px;
+            max-width: 75%;
             word-wrap: break-word;
-            line-height: 1.5;
+            line-height: 1.6;
+            box-shadow: 0 2px 5px var(--shadow-color); /* Subtle shadow */
         }
         .user-message {
-            background-color: #DCF8C6;
+            background-color: var(--bg-user-message);
+            color: #ffffff;
             align-self: flex-end;
-            margin-left: auto; /* 將用戶消息推到右邊 */
+            margin-left: auto;
+            border-bottom-right-radius: 5px; /* Message tail effect */
         }
         .ai-message {
-            background-color: #E5E5EA;
+            background-color: var(--bg-ai-message);
+            color: var(--text-primary);
             align-self: flex-start;
-            margin-right: auto; /* 將 AI 消息推到左邊 */
+            margin-right: auto;
+            border: 1px solid var(--border-color);
+            border-bottom-left-radius: 5px; /* Message tail effect */
         }
         .message-sender {
-            font-weight: bold;
-            margin-bottom: 5px;
-            font-size: 0.9em;
-            color: #555;
+            font-weight: 600;
+            margin-bottom: 6px;
+            font-size: 0.8em;
+            color: inherit;
+            opacity: 0.7;
+        }
+        .user-message .message-sender {
+             color: var(--text-sender-user);
+        }
+        .ai-message .message-sender {
+             color: var(--text-sender-ai);
+        }
+
+        #input-controls {
+             padding: 15px 25px;
+             background-color: var(--bg-input-controls);
+             border-top: 1px solid var(--border-color);
+             box-shadow: 0 -2px 5px rgba(0,0,0,0.1); /* Keep subtle top shadow */
+        }
+
+        #mode-toggle-area {
+            display: flex;
+            align-items: center;
+            padding: 0 0 10px 0;
+        }
+        #mode-toggle-area label {
+            margin-left: 8px;
+            font-size: 0.85em;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+        #mode-toggle-area input[type="checkbox"] {
+            cursor: pointer;
+            accent-color: var(--text-link); /* Style checkbox */
         }
 
         #input-area {
             display: flex;
-            padding: 15px;
-            background-color: #fff;
-            border-top: 1px solid #ccc;
         }
         #userInput {
             flex-grow: 1;
-            padding: 10px 15px;
-            border: 1px solid #ccc;
-            border-radius: 20px;
+            padding: 12px 18px;
+            border: 1px solid var(--border-color);
+            border-radius: 25px;
             margin-right: 10px;
             font-size: 1em;
+            background-color: var(--bg-input-field);
+            color: var(--text-primary);
+        }
+        #userInput::placeholder {
+            color: var(--text-secondary);
+            opacity: 0.7;
+        }
+        #userInput:focus {
+            outline: none;
+            border-color: var(--text-link);
+            box-shadow: 0 0 0 0.2rem rgba(88, 166, 255, 0.25);
         }
         #sendButton {
-            padding: 10px 20px;
-            background-color: #007bff;
-            color: white;
+            padding: 12px 25px;
+            background-color: var(--text-link);
+            color: var(--bg-main);
             border: none;
-            border-radius: 20px;
+            border-radius: 25px;
             cursor: pointer;
             font-size: 1em;
-            transition: background-color 0.3s ease;
+            font-weight: 600; /* Bolder button text */
+            transition: background-color 0.2s ease, box-shadow 0.2s ease;
         }
         #sendButton:hover {
-            background-color: #0056b3;
+            background-color: var(--button-hover-bg);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
         }
          #sendButton:disabled {
-            background-color: #cccccc;
+            background-color: var(--button-disabled-bg);
             cursor: not-allowed;
+            box-shadow: none;
+            color: var(--text-secondary);
         }
-        .loading-indicator {
-            display: none; /* 初始隱藏 */
-            margin: 10px 0;
+
+         .loading-indicator {
+            display: none;
+            padding: 10px 25px 5px 25px;
             text-align: center;
-            color: #888;
+            font-size: 0.9em;
+            color: var(--text-secondary);
         }
         .loading-indicator.active {
-            display: block; /* 發送請求時顯示 */
+            display: block;
         }
         .error-message {
-            color: red;
+            color: var(--error-color);
             font-style: italic;
             margin-top: 5px;
+            font-weight: 500;
         }
-         /* 打字機效果的閃爍游標 */
+         /* Typing cursor */
         .typing-cursor::after {
             content: '▋';
             animation: blink 1s step-start infinite;
-            margin-left: 2px;
-            font-size: 1.1em; /* 稍微放大游標 */
-            vertical-align: baseline; /* 對齊文字基線 */
+            margin-left: 3px;
+            font-size: 1.1em;
+            vertical-align: baseline;
+            color: var(--cursor-color);
+        }
+        /* AI message typing cursor */
+        .ai-message.typing-active .typing-cursor::after {
+            color: var(--text-secondary);
         }
 
         @keyframes blink {
             50% { opacity: 0; }
         }
-        /* 讓 Markdown 的 code block 有樣式 */
+        /* Markdown code block styles */
         pre {
-            background-color: #2d2d2d;
-            color: #f8f8f2;
+            background-color: var(--bg-code-block);
+            color: var(--text-code);
             padding: 15px;
-            border-radius: 5px;
+            border-radius: 8px;
             overflow-x: auto;
-            font-family: 'Courier New', Courier, monospace;
+            font-family: 'Consolas', 'Courier New', monospace;
             font-size: 0.9em;
-            margin: 10px 0;
+            margin: 12px 0;
+            border: 1px solid var(--border-code);
         }
         code:not(pre code) { /* Inline code */
-             background-color: #e0e0e0;
+             background-color: var(--bg-inline-code);
              padding: 0.2em 0.4em;
-             margin: 0;
+             margin: 0 2px;
              font-size: 85%;
-             border-radius: 3px;
-             font-family: 'Courier New', Courier, monospace;
+             border-radius: 4px;
+             font-family: 'Consolas', 'Courier New', monospace;
+             color: var(--text-primary);
+             border: 1px solid var(--border-code);
         }
         pre code {
             background: none;
@@ -131,7 +293,39 @@
             margin: 0;
             font-size: inherit;
             border-radius: 0;
+            border: none;
+            color: inherit;
         }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            #main-container {
+                flex-direction: column;
+                overflow: auto; /* Allow scrolling on small screens */
+            }
+            #left-panel {
+                width: 100%;
+                max-width: none;
+                height: auto; /* Adjust height */
+                border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                max-height: none; /* Remove max-height */
+                overflow-y: visible;
+            }
+            #right-panel {
+                 height: auto;
+                 flex-grow: 1;
+                 /* Ensure right panel takes remaining height */
+                 min-height: 0;
+            }
+            #chatbox {
+                 min-height: 300px; /* Ensure chatbox has some min height */
+            }
+            .message {
+                 max-width: 90%;
+            }
+        }
+
     </style>
      <!-- 引入 Marked.js -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -139,19 +333,57 @@
     <script src="https://cdn.jsdelivr.net/npm/dompurify@2.3.3/dist/purify.min.js"></script>
 </head>
 <body>
-    <div id="chatbox">
-        <!-- 對話將顯示在這裡 -->
-        <div class="message ai-message">
-            <div class="message-sender">AI</div>
-            <span>哈囉肥宅！我是肥宅老司機AI，專門為你解答各種老司機的疑惑。不管什麼我都能陪你聊！今天想聊些什麼呢？😎</span>
+    <div id="main-container">
+        <!-- Left Panel -->
+        <div id="left-panel">
+            <img src="https://i.imgur.com/1KOfgFk.jpeg" alt="肥宅老司機 Logo">
+            <div id="acknowledgements">
+                <h3>感謝與支持</h3>
+                <hr>
+                <p>
+                    感謝收聽 <a href="https://open.firstory.me/user/fattyinsider/episodes" target="_blank" rel="noopener noreferrer">肥宅老司機 Podcast</a>！這是一個很棒的節目，快來加入討論吧！
+                </p>
+                <p>
+                    想複習節目內容？可以參考熱心聽眾整理的 <a href="https://www.notion.so/1bfdb44b1bd380998cbaff26b1be2d42" target="_blank" rel="noopener noreferrer">肥宅中工人筆記 (Notion)</a>。
+                </p>
+                <p>
+                    如果您喜歡「肥宅老司機AI」這個小工具，覺得對您有幫助，<br>
+                    可以考慮斗內支持創作者 "波尼"，幫忙補貼 API 與開發費用，讓 AI 持續進化！
+                </p>
+                <p>
+                    USDT (TRC20): <br><code>TExxw25EaPKZdKr9uPJT8MLV2zHrQBbhQg</code>
+                </p>
+                <p>
+                    多幣錢包 (例如 .Wallet): <br><code>liupony2000.x</code>
+                </p>
+                 <p style="font-size: 0.9em; margin-top: 20px; text-align: center; opacity: 0.7;">~ 你的支持是開發的最大動力 ~</p>
+            </div>
         </div>
-    </div>
 
-    <div class="loading-indicator" id="loading">AI 正在輸入中...</div>
+        <!-- Right Panel -->
+        <div id="right-panel">
+            <div id="chatbox">
+                <!-- 對話將顯示在這裡 -->
+                <div class="message ai-message">
+                    <div class="message-sender">AI</div>
+                    <span>哈囉肥宅！我是肥宅老司機AI，專門為你解答各種老司機的疑惑。不管什麼我都能陪你聊！今天想聊些什麼呢？😎</span>
+                </div>
+            </div>
 
-    <div id="input-area">
-        <input type="text" id="userInput" placeholder="在這裡輸入訊息...">
-        <button id="sendButton">發送</button>
+            <div class="loading-indicator" id="loading">AI 正在輸入中...</div>
+
+            <div id="input-controls">
+                <div id="mode-toggle-area">
+                    <input type="checkbox" id="hybridModeToggle">
+                    <label for="hybridModeToggle">啟用混合模式 (AutoRAG + Deepseek + 網路搜尋) <small> (測試功能，可能消耗較多 API 額度，請斟酌使用)</small></label>
+                </div>
+
+                <div id="input-area">
+                    <input type="text" id="userInput" placeholder="在這裡輸入訊息...">
+                    <button id="sendButton">發送</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -159,6 +391,7 @@
         const userInput = document.getElementById('userInput');
         const sendButton = document.getElementById('sendButton');
         const loadingIndicator = document.getElementById('loading');
+        const hybridModeToggle = document.getElementById('hybridModeToggle'); // Get toggle checkbox
 
         let messageHistory = [
              //{ role: "system", content: "You are FattyInsiderAI, a helpful assistant. 你總是使用繁體中文回答問題。" },
@@ -308,11 +541,20 @@
             // 創建一個 AI 消息佔位符，稍後填充
             const aiMessageDiv = appendMessage('ai', '', false, true); // isTyping = true
 
+             // --- 準備請求 Payload --- 
+             const currentMode = hybridModeToggle.checked ? 'hybrid' : 'autorag'; // Get current mode
+             console.log("Sending request with mode:", currentMode);
+
              // 過濾掉 type="system" 的消息，僅發送對話歷史
             const historyToSend = messageHistory.filter(msg => msg.role !== 'system');
-            // 將最新的 system message 加回開頭 (如果有的話)
+             // 將最新的 system message 加回開頭 (如果有的話)
              const systemMessage = messageHistory.find(msg => msg.role === 'system');
              const payloadMessages = systemMessage ? [systemMessage, ...historyToSend] : historyToSend;
+
+             const requestPayload = {
+                 messages: payloadMessages,
+                 mode: currentMode // Include the mode in the payload
+             };
 
 
             try {
@@ -322,7 +564,7 @@
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify({ messages: payloadMessages }) // 發送過濾後的歷史
+                    body: JSON.stringify(requestPayload) // Send payload with mode
                 });
 
                  if (!response.ok) {

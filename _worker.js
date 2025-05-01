@@ -1,222 +1,398 @@
-// _worker.js - Modified for Cloudflare AutoRAG with enhanced logging
+// _worker.js - Modified for AutoRAG (ai-search), Serper Web Search, and Hybrid Deepseek Mode with Error Handling
 
-/**
- * 處理來自前端的聊天請求，將其轉發給 AutoRAG 並返回結果。
- * @param {Request} request - 收到的請求
- * @param {object} env - Worker 環境變數 (包含 AutoRAG 相關設置)
- * @returns {Promise<Response>}
- */
-async function handleChatRequest(request, env) {
-  console.log("[Worker AutoRAG DEBUG] Entering handleChatRequest..."); // 新增日誌
-  try {
-    const requestBody = await request.json();
-    console.log("[Worker AutoRAG DEBUG] Parsed request body."); // 新增日誌
-    const messages = requestBody.messages;
+// Helper function to format response for frontend
+function formatResponse(content, role = "assistant", finish_reason = "stop") {
+  // Basic sanitization or validation could be added here if needed
+  const finalContent = typeof content === 'string' ? content : '(无效的回應内容)';
+  return {
+    choices: [
+      {
+        message: { role, content: finalContent },
+        finish_reason,
+      },
+    ],
+  };
+}
 
-    if (!messages || !Array.isArray(messages) || messages.length === 0) {
-      console.error("[Worker AutoRAG] Invalid or missing 'messages' in request body.");
-      return new Response(JSON.stringify({ error: "请求体中缺少有效的 'messages' 字段" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json" },
-      });
+// --- AutoRAG Interaction (Using ai-search for both modes now in hybrid path) ---
+async function callAutoRag(endpoint, token, query) {
+    console.log(`[Worker AutoRAG] Calling AutoRAG (ai-search mode) with query: "${query}"`);
+    const url = new URL(endpoint);
+    // Ensure we target the ai-search endpoint
+    if (!url.pathname.endsWith('/ai-search')) {
+         url.pathname = url.pathname.replace(/\/(search)?$/, '') + '/ai-search';
+         console.log(`[Worker AutoRAG DEBUG] Adjusted URL to ai-search: ${url.toString()}`);
+    } else {
+         console.log(`[Worker AutoRAG DEBUG] Using existing ai-search URL: ${url.toString()}`);
     }
 
-    // 提取最後一條 user message 作為查詢
-    const lastUserMessage = messages.findLast(msg => msg.role === 'user');
-    if (!lastUserMessage || !lastUserMessage.content) {
-        console.error("[Worker AutoRAG] No user message found in history.");
-        return new Response(JSON.stringify({ error: "聊天歷史中找不到使用者訊息" }), {
-            status: 400,
-            headers: { "Content-Type": "application/json" },
-        });
-    }
-    const userQuery = lastUserMessage.content;
-    console.log(`[Worker AutoRAG DEBUG] Extracted user query: "${userQuery}"`); // 新增日誌
-
-    // --- AutoRAG API 呼叫 --- 
-    const AUTORAG_ENDPOINT = env.AUTORAG_ENDPOINT;
-    const AUTORAG_API_TOKEN = env.AUTORAG_API_TOKEN;
-
-    // 打印環境變數 (檢查是否存在，但不打印 Token 值)
-    console.log(`[Worker AutoRAG DEBUG] AUTORAG_ENDPOINT: ${AUTORAG_ENDPOINT ? 'Loaded' : 'MISSING!'}`);
-    console.log(`[Worker AutoRAG DEBUG] AUTORAG_API_TOKEN: ${AUTORAG_API_TOKEN ? 'Loaded' : 'MISSING!'}`);
-
-    if (!AUTORAG_ENDPOINT || !AUTORAG_API_TOKEN) {
-        console.error("[Worker AutoRAG] AUTORAG_ENDPOINT or AUTORAG_API_TOKEN is not configured in environment variables.");
-        return new Response(JSON.stringify({ error: "後端 AutoRAG 設定未完成" }), {
-            status: 500,
-            headers: { "Content-Type": "application/json" },
-        });
-    }
-
-    const autoRagPayload = {
-        query: userQuery,
-        // 根據 AutoRAG API 文件，可能需要包含 stream 參數
-        stream: false // 明確指定非流式，如果需要流式則改為 true
+    const payload = {
+        query: query,
+        stream: false,
     };
-    console.log("[Worker AutoRAG DEBUG] Sending payload to AutoRAG:", JSON.stringify(autoRagPayload)); // 新增日誌
+    console.log(`[Worker AutoRAG DEBUG] Sending payload to AutoRAG (${url.toString()}):`, JSON.stringify(payload));
 
-    const response = await fetch(AUTORAG_ENDPOINT, {
+    const response = await fetch(url.toString(), {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${AUTORAG_API_TOKEN}`
+            'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify(autoRagPayload)
+        body: JSON.stringify(payload)
     });
 
     console.log(`[Worker AutoRAG] Received response status from AutoRAG: ${response.status}`);
-    console.log("[Worker AutoRAG DEBUG] Received response headers:", JSON.stringify(Object.fromEntries(response.headers.entries()))); // 新增日誌
+    // Log headers only if needed for debugging
+    // console.log("[Worker AutoRAG DEBUG] Received response headers:", JSON.stringify(Object.fromEntries(response.headers.entries())));
 
     if (!response.ok) {
-        let errorBody = "(Failed to read error body)";
-        try {
-           errorBody = await response.text();
-        } catch (e) { console.error("[Worker AutoRAG DEBUG] Error reading error body:", e); }
+        let errorBody = "(Failed to read AutoRAG error body)";
+        try { errorBody = await response.text(); } catch (e) { /* ignore */ }
         console.error(`[Worker AutoRAG] AutoRAG API Error: ${response.status}. Body: ${errorBody}`);
-        return new Response(JSON.stringify({ error: `AutoRAG 請求失敗: ${response.status}`, detail: errorBody }), {
-            status: response.status,
-            headers: { 'Content-Type': 'application/json' }
-        });
+        throw new Error(`AutoRAG request failed with status ${response.status}: ${errorBody}`);
     }
 
-    // --- 處理 AutoRAG 回應 --- 
-    // 檢查 Content-Type 是否為流式
     const contentType = response.headers.get("content-type") || "";
-    console.log(`[Worker AutoRAG DEBUG] AutoRAG response Content-Type: ${contentType}`);
+    if (!contentType.includes("application/json")) {
+        const textBody = await response.text();
+        console.error(`[Worker AutoRAG] Received non-JSON Content-Type from AutoRAG: ${contentType}. Body:`, textBody.substring(0, 500));
+        throw new Error(`AutoRAG returned non-JSON response: ${textBody}`);
+    }
 
-    if (contentType.includes("text/event-stream")) {
-        // --- 處理流式響應 (如果需要) --- 
-        console.log("[Worker AutoRAG] Streaming AutoRAG response to client...");
-        // 注意：前端目前設定為處理 JSON 或特定流格式，直接轉發 SSE 可能不相容
-        // 可能需要解析 SSE 並轉換格式，或者修改前端
-        // 暫時先返回錯誤，表示未實現流式處理
-        console.error("[Worker AutoRAG] Streaming response from AutoRAG received, but frontend/worker not configured to handle it directly yet.");
-        return new Response(JSON.stringify({ error: "後端收到流式回應，但尚未完全支援" }), {
-            status: 501, // 501 Not Implemented
-            headers: { 'Content-Type': 'application/json' }
-        });
-        /* // 直接轉發流的程式碼 (可能需要調整)
-        const responseHeaders = new Headers(response.headers);
-        responseHeaders.set("Content-Type", "text/event-stream; charset=utf-8"); 
-        return new Response(response.body, {
-            status: response.status,
-            headers: responseHeaders,
-        });
-        */
-    } else if (contentType.includes("application/json")) {
-         // --- 處理 JSON 響應 --- 
-        console.log("[Worker AutoRAG DEBUG] Attempting to parse AutoRAG response as JSON...");
-        const autoRagResult = await response.json();
-        console.log("[Worker AutoRAG DEBUG] Parsed AutoRAG JSON result:", JSON.stringify(autoRagResult).substring(0, 500) + '...'); 
+    console.log(`[Worker AutoRAG DEBUG] Attempting to parse AutoRAG response as JSON...`);
+    const result = await response.json();
+    console.log(`[Worker AutoRAG DEBUG] Parsed AutoRAG JSON result:`, JSON.stringify(result).substring(0, 500) + '...');
 
-        // --- 將 AutoRAG 回應轉換成前端需要的格式 --- 
-        // 假設答案在 autoRagResult.answer 或 autoRagResult.result.response (常見格式)
-        let answerContent = "(AutoRAG 未提供答案或無法解析)";
-        if (autoRagResult && autoRagResult.answer) {
-            answerContent = autoRagResult.answer;
-        } else if (autoRagResult && autoRagResult.result && autoRagResult.result.response) {
-             answerContent = autoRagResult.result.response;
-        } else {
-            console.warn("[Worker AutoRAG DEBUG] Could not find 'answer' or 'result.response' in AutoRAG JSON.");
-        }
-        console.log(`[Worker AutoRAG DEBUG] Extracted answer content (length: ${answerContent.length})`);
+    // --- Extract answer from AutoRAG response ---
+    let answerContent = null; // Use null to indicate not found initially
+    if (result && result.result && result.result.response) { // Primary expected format
+        answerContent = result.result.response;
+    } else if (result && result.answer) { // Alternative format 1
+        answerContent = result.answer;
+    } else if (result.choices && result.choices[0]?.message?.content) { // Alternative format 2 (OpenAI-like)
+        answerContent = result.choices[0].message.content;
+    }
 
-        const formattedResponse = {
-            choices: [
-                {
-                    message: {
-                        role: "assistant",
-                        content: answerContent
-                    },
-                    finish_reason: "stop" 
-                }
-            ]
-        };
-        console.log("[Worker AutoRAG DEBUG] Sending formatted JSON response to client.");
-        return new Response(JSON.stringify(formattedResponse), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' }
-        });
+    if (answerContent === null) {
+         console.warn("[Worker AutoRAG DEBUG] Could not find expected answer in AutoRAG /ai-search JSON response. Structure:", JSON.stringify(result).substring(0, 300));
+         // Decide how to handle: throw error or return null? Let's return null for now.
+         // throw new Error("AutoRAG response structure unexpected, could not extract answer.");
     } else {
-        // --- 處理未知 Content-Type --- 
-        console.warn(`[Worker AutoRAG] Received unknown Content-Type from AutoRAG: ${contentType}. Attempting to read as text.`);
-        const fallbackText = await response.text();
-        console.log("[Worker AutoRAG DEBUG] AutoRAG fallback text response:", fallbackText.substring(0, 500) + '...');
-         // 嘗試將純文字包裝後發送
-         const formattedResponse = {
-            choices: [
-                {
-                    message: {
-                        role: "assistant",
-                        content: fallbackText || "(AutoRAG 回應為空或非預期格式)"
-                    },
-                    finish_reason: "stop" 
-                }
-            ]
-        };
-        return new Response(JSON.stringify(formattedResponse), {
-            status: 200, // 雖然格式未知，但請求成功了
-            headers: { 'Content-Type': 'application/json' }
-        });
+        console.log(`[Worker AutoRAG DEBUG] Extracted AutoRAG answer content (length: ${answerContent?.length ?? 0})`);
     }
-
-  } catch (e) {
-    console.error("[Worker AutoRAG] FATAL Error handling /api/chat POST:", e);
-    if (e.stack) {
-      console.error("[Worker AutoRAG DEBUG] Error Stack:", e.stack);
-    }
-    const status = (e instanceof SyntaxError) ? 400 : 500;
-    const errorMsg = (e instanceof SyntaxError) ? "无效的 JSON 请求体" : "處理請求時發生內部錯誤 (Worker)";
-    // 在 detail 中包含更詳細的錯誤訊息
-    const errorDetail = e.message + (e.cause ? ` - Cause: ${JSON.stringify(e.cause)}` : '');
-    return new Response(JSON.stringify({ error: errorMsg, detail: errorDetail }), {
-        status: status,
-        headers: { 'Content-Type': 'application/json' },
-    });
-  }
+    return answerContent; // Return only the answer string or null
 }
 
-// _worker.js 的主入口點
+// --- Serper Web Search Interaction ---
+async function callSerperSearch(apiKey, query) {
+    const SERPER_API_URL = "https://google.serper.dev/search";
+    console.log(`[Worker Serper] Calling Serper API with query: "${query}"`);
+
+    const payload = JSON.stringify({
+        q: query,
+        num: 5 // Request top 5 results (adjust as needed)
+    });
+
+    try {
+        const response = await fetch(SERPER_API_URL, {
+            method: 'POST',
+            headers: {
+                'X-API-KEY': apiKey,
+                'Content-Type': 'application/json'
+            },
+            body: payload
+        });
+
+        console.log(`[Worker Serper] Received response status from Serper: ${response.status}`);
+
+        if (!response.ok) {
+            let errorBody = "(Failed to read Serper error body)";
+            try { errorBody = await response.text(); } catch (e) { /* ignore */ }
+            console.error(`[Worker Serper] Serper API Error: ${response.status}. Body: ${errorBody}`);
+            // Don't throw, just return null so Deepseek can proceed without search results
+            return null;
+        }
+
+        const results = await response.json();
+        console.log(`[Worker Serper DEBUG] Parsed Serper JSON result (showing first few):`, JSON.stringify(results.organic?.slice(0,2) ?? results).substring(0, 500) + '...');
+
+        // Format results for the prompt (e.g., title + snippet)
+        if (results.organic && results.organic.length > 0) {
+            return results.organic.slice(0, 5) // Take top 5 organic results
+                .map((item, index) => `[搜尋結果 ${index + 1}] ${item.title}\n${item.snippet || '(無摘要)'}\n來源: ${item.link || '(無連結)'}`)
+                .join("\n\n");
+        } else {
+            console.log("[Worker Serper] No organic results found in Serper response.");
+            return null; // No useful results
+        }
+    } catch (e) {
+        console.error("[Worker Serper] FATAL Error calling Serper API:", e);
+        return null; // Return null on any fetch error
+    }
+}
+
+
+// --- Deepseek Interaction ---
+async function callDeepseek(apiKey, messages, autoRagAnswer = null, searchResults = null, autoRagError = null) {
+    const DEEPSEEK_API_URL = "https://api.deepseek.com/chat/completions";
+    console.log("[Worker Deepseek] Calling Deepseek API...");
+
+    // --- Construct Prompt for Deepseek ---
+    const baseSystemPrompt = "你是肥宅老司機 AI (FattyInsiderAI)，一個服務於台灣成年向 Podcast 節目「肥宅老司機」的助理。你的回答風格應該輕鬆有趣。請總是使用繁體中文回答。";
+    let finalSystemPrompt = baseSystemPrompt;
+    let addedInfo = false; // Flag to track if any useful info was added
+
+    finalSystemPrompt += "\n\n請整合以下資訊來回答使用者的問題：";
+
+    if (autoRagAnswer) {
+        finalSystemPrompt += `\n\n1. **節目摘要重點 (請優先參考此內容回答節目相關問題，並盡可能保留如 '(出自 S3EPXX)' 的來源標註)**:\n---\n${autoRagAnswer}\n---`;
+        addedInfo = true;
+    } else if (autoRagError) {
+        // AutoRAG failed, inform Deepseek
+        // Include a sanitized/simplified error if needed, or just a generic message
+        // const sanitizedError = autoRagError.length > 100 ? autoRagError.substring(0, 100) + '...' : autoRagError;
+        finalSystemPrompt += `\n\n1. **注意：無法從節目摘要資料庫獲取相關資訊。** 請主要根據以下網路搜尋結果和你的通用知識回答。`;
+         console.log(`[Worker Deepseek DEBUG] AutoRAG failed with error: ${autoRagError}`); // Log the original error
+    } else {
+        // AutoRAG didn't fail but returned null/empty answer
+        finalSystemPrompt += `\n\n1. **節目摘要資料庫中未找到相關資訊。** 請主要根據以下網路搜尋結果和你的通用知識回答。`;
+    }
+
+    if (searchResults) {
+        finalSystemPrompt += `\n\n2. **網路搜尋結果 (用於補充時事、通用知識或節目未提及的細節)**:\n---\n${searchResults}\n---`;
+        addedInfo = true;
+    } else {
+        // Add a note if search was skipped or failed only if AutoRAG info was also missing/failed
+         if (!autoRagAnswer) {
+             finalSystemPrompt += `\n\n2. **網路搜尋也未執行或未找到結果。**`;
+         }
+    }
+
+    // Final instruction based on what info was available
+    if (addedInfo) {
+         finalSystemPrompt += "\n\n請用自然、口語化的方式綜合以上資訊，提供一個完整且有趣的回答。";
+         if (autoRagAnswer && searchResults) { // Only add conflict instruction if both are present
+             finalSystemPrompt += "如果節目摘要和網路搜尋結果有衝突，請優先採信節目摘要的內容，或婉轉指出可能的差異。";
+         } else if (autoRagAnswer) {
+             finalSystemPrompt += "請盡可能保留如 '(出自 S3EPXX)' 的來源標註。";
+         }
+    } else {
+         // Neither AutoRAG nor Search provided info, and AutoRAG might have failed
+         finalSystemPrompt += "\n\n請根據你的通用知識回答。";
+         if (autoRagError) {
+             // Optional: Add a note about the failure in the final instruction too?
+             // finalSystemPrompt += " (無法訪問節目摘要資料庫)";
+         }
+    }
+
+
+    // Prepare messages for Deepseek: Add the constructed system prompt and user/assistant history
+    let messagesForDeepseek = [{ role: "system", content: finalSystemPrompt }];
+    messagesForDeepseek = messagesForDeepseek.concat(messages); // Add conversation history
+
+    // Optional: Clean up history slightly? Maybe remove previous AI answers if prompt gets too long?
+    // For now, keep full history.
+
+    console.log("[Worker Deepseek DEBUG] Final system prompt for Deepseek:", finalSystemPrompt);
+    console.log("[Worker Deepseek DEBUG] Message history being sent (excluding new system prompt):", JSON.stringify(messages, null, 2));
+
+    const payload = {
+        model: "deepseek-chat",
+        messages: messagesForDeepseek,
+        stream: false
+    };
+
+    const response = await fetch(DEEPSEEK_API_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify(payload)
+    });
+
+    console.log(`[Worker Deepseek] Received response status from Deepseek: ${response.status}`);
+
+    if (!response.ok) {
+        let errorBody = "(Failed to read Deepseek error body)";
+        try { errorBody = await response.text(); } catch (e) { /* ignore */ }
+        console.error(`[Worker Deepseek] Deepseek API Error: ${response.status}. Body: ${errorBody}`);
+        throw new Error(`Deepseek request failed with status ${response.status}: ${errorBody}`);
+    }
+
+    const result = await response.json();
+    console.log("[Worker Deepseek DEBUG] Parsed Deepseek JSON result:", JSON.stringify(result).substring(0, 500) + '...');
+    // Extract the actual response content
+     if (result.choices && result.choices[0] && result.choices[0].message && result.choices[0].message.content) {
+         return result.choices[0].message.content;
+     } else {
+         console.warn("[Worker Deepseek DEBUG] Could not find expected content in Deepseek JSON response.");
+         throw new Error("Deepseek response structure unexpected, could not extract answer.");
+     }
+}
+
+
+/**
+ * Handles chat requests, routing based on mode.
+ */
+async function handleChatRequest(request, env) {
+    console.log("[Worker Request] Entering handleChatRequest...");
+    let requestBody;
+    try {
+        requestBody = await request.json();
+        console.log("[Worker Request DEBUG] Parsed request body.");
+    } catch (e) {
+        console.error("[Worker Request] Invalid JSON in request body:", e);
+        return new Response(JSON.stringify({ error: "无效的 JSON 请求体" }), { status: 400, headers: { "Content-Type": "application/json" } });
+    }
+
+    const messages = requestBody.messages;
+    const mode = requestBody.mode || 'autorag'; // Default to 'autorag'
+    console.log(`[Worker Request] Received mode: ${mode}`);
+
+    if (!messages || !Array.isArray(messages) || messages.length === 0) {
+        console.error("[Worker Request] Invalid or missing 'messages' in request body.");
+        return new Response(JSON.stringify({ error: "请求体中缺少有效的 'messages' 字段" }), { status: 400, headers: { "Content-Type": "application/json" } });
+    }
+
+    const lastUserMessage = messages.findLast(msg => msg.role === 'user');
+    if (!lastUserMessage || !lastUserMessage.content) {
+        console.error("[Worker Request] No user message found in history.");
+        return new Response(JSON.stringify({ error: "聊天歷史中找不到使用者訊息" }), { status: 400, headers: { "Content-Type": "application/json" } });
+    }
+    const userQuery = lastUserMessage.content;
+    console.log(`[Worker Request DEBUG] Extracted user query: "${userQuery}"`);
+
+    // --- Get Environment Variables ---
+    const { AUTORAG_ENDPOINT, AUTORAG_API_TOKEN, DEEPSEEK_API_KEY, SERPER_API_KEY } = env;
+
+    console.log(`[Worker ENV DEBUG] AUTORAG_ENDPOINT: ${AUTORAG_ENDPOINT ? 'Loaded' : 'MISSING!'}`);
+    console.log(`[Worker ENV DEBUG] AUTORAG_API_TOKEN: ${AUTORAG_API_TOKEN ? 'Loaded' : 'MISSING!'}`);
+    console.log(`[Worker ENV DEBUG] DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY ? 'Loaded' : 'MISSING!'}`);
+    console.log(`[Worker ENV DEBUG] SERPER_API_KEY: ${SERPER_API_KEY ? 'Loaded' : 'MISSING!'}`); // Check Serper key
+
+    if (!AUTORAG_ENDPOINT || !AUTORAG_API_TOKEN) {
+        console.error("[Worker ENV] AutoRAG environment variables missing.");
+        return new Response(JSON.stringify({ error: "後端 AutoRAG 設定未完成" }), { status: 500, headers: { "Content-Type": "application/json" } });
+    }
+
+    // Filter message history (remove system prompts before sending to APIs)
+    const conversationHistory = messages.filter(msg => msg.role !== 'system');
+
+    try {
+        if (mode === 'hybrid') {
+            console.log("[Worker Logic] Entering Hybrid Mode (AutoRAG -> Serper -> Deepseek)...");
+            if (!DEEPSEEK_API_KEY) {
+                console.error("[Worker ENV] DEEPSEEK_API_KEY is missing for Hybrid mode.");
+                return new Response(JSON.stringify({ error: "後端 Deepseek API 金鑰未設定" }), { status: 500, headers: { "Content-Type": "application/json" } });
+            }
+             let serperKeyAvailable = true; // Assume available initially
+             if (!SERPER_API_KEY) {
+                console.error("[Worker ENV] SERPER_API_KEY is missing for Hybrid mode web search.");
+                console.warn("[Worker Logic] SERPER_API_KEY missing, proceeding without web search.");
+                serperKeyAvailable = false;
+             }
+
+            let autoRagAnswer = null;
+            let autoRagError = null; // Variable to store potential AutoRAG error message
+
+            // 1. Call AutoRAG (ai-search) and catch errors
+            console.log("[Worker Logic] Step 1: Calling AutoRAG ai-search...");
+            try {
+                 autoRagAnswer = await callAutoRag(AUTORAG_ENDPOINT, AUTORAG_API_TOKEN, userQuery);
+                 if (autoRagAnswer === null) {
+                     console.warn("[Worker Logic] AutoRAG did not return a valid answer (returned null). Continuing...");
+                 }
+            } catch (e) {
+                console.error("[Worker Logic] AutoRAG call failed:", e.message);
+                autoRagError = e.message; // Store the error message
+                autoRagAnswer = null; // Ensure answer is null on error
+            }
+
+
+            // 2. Call Serper (if key exists)
+             let searchResults = null;
+             if (serperKeyAvailable) { // Use the flag check
+                console.log("[Worker Logic] Step 2: Calling Serper Web Search...");
+                searchResults = await callSerperSearch(SERPER_API_KEY, userQuery);
+                 if (searchResults === null) {
+                     console.warn("[Worker Logic] Web search failed or returned no results.");
+                 }
+             } else {
+                 console.log("[Worker Logic] Step 2: Skipping web search (SERPER_API_KEY not found).");
+             }
+
+
+            // 3. Call Deepseek with RAG answer, Search results, and potential RAG error
+            console.log("[Worker Logic] Step 3: Calling Deepseek for synthesis...");
+            const deepseekFinalAnswer = await callDeepseek(DEEPSEEK_API_KEY, [...conversationHistory], autoRagAnswer, searchResults, autoRagError); // Pass autoRagError
+
+            // 4. Format and return Deepseek response
+            console.log(`[Worker Logic DEBUG] Extracted Deepseek final answer (Hybrid Mode, length: ${deepseekFinalAnswer.length})`);
+            const formattedResponse = formatResponse(deepseekFinalAnswer);
+            console.log("[Worker Logic DEBUG] Sending formatted Deepseek response to client (Hybrid Mode).");
+            return new Response(JSON.stringify(formattedResponse), { status: 200, headers: { 'Content-Type': 'application/json' } });
+
+        } else { // Default 'autorag' mode
+            console.log("[Worker Logic] Entering AutoRAG Mode (default)...");
+            // Call AutoRAG (ai-search)
+            const autoRagAnswer = await callAutoRag(AUTORAG_ENDPOINT, AUTORAG_API_TOKEN, userQuery);
+
+            if (autoRagAnswer === null) {
+                // Handle case where AutoRAG fails or returns unexpected structure
+                console.error("[Worker Logic] AutoRAG failed to provide an answer in AutoRAG mode.");
+                 return new Response(JSON.stringify({ error: "無法從 AutoRAG 獲取回答", detail: "Response structure might be incorrect or API failed." }), { status: 500, headers: { 'Content-Type': 'application/json' }});
+            }
+
+            // Format and return AutoRAG response
+            const formattedResponse = formatResponse(autoRagAnswer);
+            console.log("[Worker Logic DEBUG] Sending formatted AutoRAG response to client (AutoRAG Mode).");
+            return new Response(JSON.stringify(formattedResponse), { status: 200, headers: { 'Content-Type': 'application/json' } });
+        }
+
+    } catch (e) {
+        console.error("[Worker Logic] FATAL Error during processing:", e);
+        if (e.stack) console.error("[Worker Logic DEBUG] Error Stack:", e.stack);
+        const errorMsg = "處理請求時發生內部錯誤 (Worker)";
+        const errorDetail = e.message || "Unknown error";
+        return new Response(JSON.stringify({ error: errorMsg, detail: errorDetail }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+    }
+}
+
+// _worker.js entry point
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const pathname = url.pathname;
     const method = request.method;
 
-    console.log(`[Worker Start] Request: ${method} ${pathname}`); // 簡化啟動日誌
+    console.log(`[Worker Entry] Request: ${method} ${pathname}`);
 
-    // API 路由: 處理對 /api/chat 的 POST 請求
+    // API route
     if (pathname === "/api/chat" && method === "POST") {
         return handleChatRequest(request, env);
     }
 
-    // 靜態檔案路由: 對於所有其他 GET 請求，嘗試從 ASSETS 提供服務
+    // Static assets route
     if (method === "GET") {
-        // console.log(`[Worker Fetch] Path '${pathname}' not API route, attempting static asset...`); // 減少靜態資源日誌
         try {
-          if (!env.ASSETS) {
-              console.error("[Worker Fetch] env.ASSETS is not defined. Ensure this worker is run within a Pages environment.");
-              return new Response("靜態資源服務未配置", { status: 500 });
-          }
-          // 從 ASSETS 提供靜態文件
-          return await env.ASSETS.fetch(request);
+            if (!env.ASSETS) {
+                console.error("[Worker Static] env.ASSETS is not defined.");
+                return new Response("靜態資源服務未配置", { status: 500 });
+            }
+            return await env.ASSETS.fetch(request);
         } catch (e) {
-          // 只記錄查找靜態資源的錯誤，避免過多日誌
-          // console.error(`[Worker Fetch] Error fetching static asset for path '${pathname}':`, e.message);
-          // 檢查是否請求根目錄，找不到通常是部署問題
-          if (pathname === '/' || pathname === '/index.html') {
-            console.error(`[Worker Fetch] Critical asset not found: ${pathname}`);
-            return new Response("找不到主要頁面 (index.html)", { status: 404 });
-          } else {
-            // 對於其他資源返回標準 404
-            return new Response("資源未找到 (Not Found)", { status: 404 });
-          }
+            if (pathname === '/' || pathname === '/index.html') {
+                console.error(`[Worker Static] Critical asset not found: ${pathname}`, e.message);
+                return new Response("找不到主要頁面 (index.html)", { status: 404 });
+            } else {
+                return new Response("資源未找到 (Not Found)", { status: 404 });
+            }
         }
-    } else {
-        // 拒絕非 GET/POST 的請求
-        console.warn(`[Worker No Match] Method ${method} not allowed for path '${pathname}'.`);
-        return new Response("方法不允許 (Method Not Allowed)", { status: 405 });
     }
+
+    // Other methods
+    console.warn(`[Worker Entry] Method ${method} not allowed for path '${pathname}'.`);
+    return new Response("方法不允許 (Method Not Allowed)", { status: 405 });
   },
 };

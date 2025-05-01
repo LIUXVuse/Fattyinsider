@@ -12,16 +12,30 @@
 - **後端 (資料處理)**: **Cloudflare AutoRAG** 負責：
     - 從指定的 R2 儲存桶 (`fattyinsider`) 自動讀取、轉換、分塊和向量化 Markdown 文件。
     - 管理底層的 Vectorize 索引。
-    - 提供 API 端點以接收查詢並返回結合了 RAG 結果的最終答案。
+    - 提供 API 端點 (`/ai-search`) 以接收查詢並返回結合了 RAG 結果的最終答案 (由 AutoRAG 內建 LLM 生成)。
 - **後端 (請求處理)**: `_worker.js` (使用 Cloudflare Pages Advanced Mode) 負責：
     - 提供靜態前端文件 (`index.html` 等)。
     - 接收前端 `/api/chat` 請求。
-    - 將使用者查詢轉發給 **AutoRAG API 端點**。
+    - 將使用者查詢轉發給 **AutoRAG API 端點** (`/ai-search`)。
     - 將 AutoRAG 回傳的答案格式化後回傳給前端。
 - **資料來源**: 存放在 Cloudflare R2 儲存桶 (`fattyinsider`) 中的 Markdown 格式節目摘要。
 - **運行環境**: Cloudflare Pages (使用 `_worker.js` 進階模式) + Cloudflare AutoRAG。
 - **部署**: 自動從 GitHub (`master` 分支) 部署。
-- **核心功能**: 預期實現基於節目摘要的 RAG 聊天功能。
+- **核心功能**: 目前實現基於節目摘要的 RAG 聊天功能，答案由 AutoRAG 內建 LLM 生成。
+
+## 未來計畫：混合模式 (AutoRAG 生成 + Serper 搜尋 + Deepseek 整合)
+
+- **目標**: 提供一個可選模式，先由 AutoRAG 的 `/ai-search` 取得基於節目摘要的答案，再透過 Serper.dev 進行網路搜尋，最後將兩者交由 Deepseek 進行整合與潤飾，以提供更全面、包含即時資訊的回應。
+- **前端變更**: 在 `index.html` 中增加一個 UI 元素 (例如核取方塊)，讓使用者可以切換「AutoRAG 模式」和「混合模式」，並加入費用與額度提示。
+- **後端變更 (`_worker.js`)**:
+    - 接收前端傳來的模式指示。
+    - **AutoRAG 模式 (預設)**: 維持原有邏輯，呼叫 AutoRAG `/ai-search` 端點並直接回傳其答案。
+    - **混合模式**:
+        1.  呼叫 AutoRAG `/ai-search` 端點獲取 RAG 生成的答案。
+        2.  (如果 `SERPER_API_KEY` 存在) 呼叫 Serper.dev API 進行網路搜尋。
+        3.  將使用者問題、AutoRAG 答案、網路搜尋結果組合後，發送給 Deepseek API 進行最終整合。
+        4.  將 Deepseek API 的回應格式化後回傳給前端。
+    - 需要新增 `DEEPSEEK_API_KEY` 和 `SERPER_API_KEY` 環境變數。
 
 ## AutoRAG 整合流程
 
@@ -39,7 +53,9 @@
 4.  **設定環境變數**: 在 Cloudflare Pages 專案設定中，添加以下環境變數：
     - `AUTORAG_ENDPOINT`: AutoRAG 實例的 API 端點 URL。
     - `AUTORAG_API_TOKEN`: 建立的 Service API Token 的值 (設為 Secret)。
-5.  **Worker (`_worker.js`) 邏輯**: `_worker.js` 接收前端請求，將使用者問題發送到 `AUTORAG_ENDPOINT` (使用 `AUTORAG_API_TOKEN` 認證)，並處理 AutoRAG 的回應。
+    - `DEEPSEEK_API_KEY`: (混合模式需要) 你的 Deepseek API 金鑰 (設為 Secret)。
+    - `SERPER_API_KEY`: (混合模式需要) 你的 Serper.dev API 金鑰 (設為 Secret)。
+5.  **Worker (`_worker.js`) 邏輯**: `_worker.js` 接收前端請求，根據選擇的模式，可能只呼叫 AutoRAG，或依序呼叫 AutoRAG、Serper、Deepseek，最後處理回應。
 
 ## 開發歷程中的主要挑戰與解決方案
 
@@ -61,6 +77,8 @@
     ```
     AUTORAG_ENDPOINT="YOUR_AUTORAG_API_ENDPOINT_URL"
     AUTORAG_API_TOKEN="YOUR_SERVICE_API_TOKEN_VALUE"
+    DEEPSEEK_API_KEY="YOUR_DEEPSEEK_API_KEY"
+    SERPER_API_KEY="YOUR_SERPER_API_KEY"
     ```
     (將引號內的內容替換為實際值)。
 5.  運行本地開發伺服器: `wrangler pages dev .`
@@ -68,5 +86,5 @@
 
 ## 密鑰管理
 
-- **生產環境**: `AUTORAG_ENDPOINT` 和 `AUTORAG_API_TOKEN` **必須**在 Cloudflare Pages 專案的「設定」->「環境變數」中配置。`AUTORAG_API_TOKEN` 應標記為 **Secret**。
+- **生產環境**: `AUTORAG_ENDPOINT`, `AUTORAG_API_TOKEN`, `DEEPSEEK_API_KEY`, 和 `SERPER_API_KEY` **必須**在 Cloudflare Pages 專案的「設定」->「環境變數」中配置。API Token 和 Key 應標記為 **Secret**。
 - **本地開發**: 使用 `.dev.vars` 文件管理本地測試所需的密鑰。 
