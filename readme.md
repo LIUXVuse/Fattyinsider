@@ -4,7 +4,10 @@
 
 肥宅老司機 AI 聊天機器人是一個聊天應用，旨在為「肥宅老司機」Podcast 的聽眾提供一個互動界面。此應用利用 **Cloudflare AutoRAG** 整合節目內容摘要，並可選用 **Serper.dev** 進行網路搜尋，或直接使用 **Deepseek API** 進行通用 AI 回應。應用程式透過 **Cloudflare Pages** 部署。
 
-*最後更新時間: 2025/05/01*
+可以直接訪問項目網頁: https://fattyinsider.pages.dev/
+本地生成摘要訪問"肥宅老司機 X Ollama 文件摘要腳本":https://github.com/LIUXVuse/Fattyinsider_Ollama_summaries
+
+*最後更新時間: 2025/05/03*
 
 ## 當前狀態 (Cloudflare Pages + AutoRAG + Serper + Deepseek)
 

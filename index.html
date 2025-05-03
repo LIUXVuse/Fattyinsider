@@ -51,14 +51,16 @@
         #left-panel {
             width: 35%; /* Adjust width as needed */
             max-width: 400px; /* Max width for left panel */
-            height: 100%;
+            /* height: 100%; */ /* Remove fixed height */
+            max-height: 100vh; /* Limit height to viewport height */
+            overflow-y: auto; /* Allow scrolling if content overflows */
             background-color: var(--bg-panel-left);
             padding: 30px;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
             border-right: 1px solid var(--border-color);
-            overflow-y: auto; /* Allow scrolling if content overflows */
+            /* overflow-y: auto; */ /* Moved up */
         }
 
         #left-panel img {
@@ -441,6 +443,18 @@
                     </div>
 
                     <div class="work-item">
+                        <h4>🔮 HexAI 算卦</h4>
+                        <p>想求神問事試試看AI算掛吧，Hex AI 或許可以幫到你</p>
+                        <a href="https://hexai-eg2.pages.dev/" target="_blank" rel="noopener noreferrer" class="work-link">前往 HexAI</a>
+                    </div>
+
+                    <div class="work-item">
+                        <h4>💱 加密貨幣匯率查詢</h4>
+                        <p>有生意需求想知道虛擬貨幣與各國匯率可以收多少 U or BTC</p>
+                        <a href="https://crypto-exchange-rate.liupony2000.workers.dev/" target="_blank" rel="noopener noreferrer" class="work-link">立即查詢</a>
+                    </div>
+
+                    <div class="work-item">
                         <h4>💎 加密貨幣交易所推薦</h4>
                         <div class="exchange-links">
                             <div class="exchange-item">
@@ -456,12 +470,6 @@
                                 <a href="https://accounts.pionex.com/zh-TW/signUp?r=m7hB1uRg" target="_blank" rel="noopener noreferrer">註冊連結</a>
                             </div>
                         </div>
-                    </div>
-
-                    <div class="work-item">
-                        <h4>💱 加密貨幣匯率查詢</h4>
-                        <p>有生意需求想知道虛擬貨幣與各國匯率可以收多少 U or BTC</p>
-                        <a href="https://crypto-exchange-rate.liupony2000.workers.dev/" target="_blank" rel="noopener noreferrer" class="work-link">立即查詢</a>
                     </div>
                 </div>
             </div>
