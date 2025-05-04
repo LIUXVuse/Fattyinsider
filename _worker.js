@@ -90,6 +90,8 @@ async function callSerperSearch(apiKey, query) {
 
     const payload = JSON.stringify({
         q: query,
+        gl: 'tw', // Specify region: Taiwan
+        hl: 'zh-tw', // Specify language: Traditional Chinese (Taiwan)
         num: 5 // Request top 5 results (adjust as needed)
     });
 
