@@ -703,32 +703,44 @@
             // 創建一個 AI 消息佔位符，稍後填充
             const aiMessageDiv = appendMessage('ai', '', false, true); // isTyping = true
 
-             // --- 準備請求 Payload --- 
-             // Get selected mode from radio buttons
-             const selectedModeInput = document.querySelector('input[name="chatMode"]:checked');
-             const currentMode = selectedModeInput ? selectedModeInput.value : 'autorag'; // Default to autorag if somehow none selected
-             console.log("Sending request with mode:", currentMode);
+            // --- 修正：先獲取當前選擇的模式 ---
+            const selectedModeInput = document.querySelector('input[name="chatMode"]:checked');
+            const currentMode = selectedModeInput ? selectedModeInput.value : 'autorag';
 
-             // 過濾掉 type="system" 的消息，僅發送對話歷史
-            const historyToSend = messageHistory.filter(msg => msg.role !== 'system');
-             // 將最新的 system message 加回開頭 (如果有的話)
-             const systemMessage = messageHistory.find(msg => msg.role === 'system');
-             const payloadMessages = systemMessage ? [systemMessage, ...historyToSend] : historyToSend;
+            // --- 判斷是否為簡單資料查詢 ---
+            const simpleQueryRegex = /探店|按摩|哪一集|節目|老雞|依依|S3EP\d+/i;
+            const isSimpleDataQuery = simpleQueryRegex.test(messageText);
+            console.log(`[sendMessage] Query: "${messageText}", isSimpleDataQuery: ${isSimpleDataQuery}, currentMode: ${currentMode}`);
 
-             const requestPayload = {
-                 messages: payloadMessages,
-                 mode: currentMode // Include the mode in the payload
-             };
+            let apiPath = '';
+            let requestPayload = {};
+
+            // --- 修正：只有在 RAG 模式下的簡單查詢才走 ai-search ---
+            if (isSimpleDataQuery && currentMode === 'autorag') {
+                apiPath = '/functions/ai-search';
+                requestPayload = { query: messageText };
+                console.log(`[sendMessage] Routing to: ${apiPath} (Simple Query in RAG mode)`);
+            } else {
+                // --- 其他情況 (複雜查詢 或 非 RAG 模式) 都走 /api/chat ---
+                apiPath = '/api/chat';
+                const historyToSend = messageHistory.filter(msg => msg.role !== 'system');
+                const payloadMessages = historyToSend; // 只傳送對話歷史
+                requestPayload = {
+                    messages: payloadMessages,
+                    mode: currentMode // 傳遞實際選擇的模式
+                };
+                console.log(`[sendMessage] Routing to: ${apiPath} (Complex Query or Non-RAG mode: ${currentMode})`);
+            }
 
 
             try {
-                // 注意 API 端點改為 /api/chat (相對於網站根目錄)
-                const response = await fetch('/api/chat', {
+                // --- 使用動態決定的 apiPath 和 requestPayload ---
+                const response = await fetch(apiPath, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify(requestPayload) // Send payload with mode
+                    body: JSON.stringify(requestPayload) // Send the determined payload
                 });
 
                  if (!response.ok) {
