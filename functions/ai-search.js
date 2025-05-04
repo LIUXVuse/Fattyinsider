@@ -3,7 +3,8 @@
 // --- 關鍵字列表 (用於 query 內容判斷) ---
 // 全部轉為小寫以方便比對
 const PODCAST_KEYWORDS = ['s3ep', '哪一集', '老雞', '依依', '節目', '回聽'];
-const TRAVEL_KEYWORDS = ['按摩', '快餐', 'gogobar', '包夜', '胡志明', '芭提雅', '關生'];
+// 將 "關生" 和 "探店" 加入 travel 關鍵字，提高優先級
+const TRAVEL_KEYWORDS = ['關生', '探店', '按摩', '快餐', 'gogobar', '包夜', '胡志明', '芭提雅'];
 
 // Helper function to check if query contains any keyword from a list
 function containsKeyword(query, keywords) {
@@ -38,42 +39,33 @@ export async function onRequestPost(context) {
 
   console.log(`[AI Search Func] Received query: "${query}", type: "${type}"`);
 
-  // --- 決定使用哪個 AutoRAG 實例 ---
+  // --- 決定使用哪個 AutoRAG 實例 (優化判斷順序) ---
   let targetEndpoint = '';
   let targetToken = '';
   let selectedRag = ''; // For logging
 
-  // 1. 根據明確的 type 判斷
-  if (type === 'travel') {
-    console.log("[AI Search Func] Selecting RAG based on type: travel");
-    targetEndpoint = env.AUTORAG_TRAVEL_ENDPOINT;
-    targetToken = env.AUTORAG_TRAVEL_TOKEN;
-    selectedRag = 'Travel';
-  } else if (type === 'podcast') {
-    console.log("[AI Search Func] Selecting RAG based on type: podcast");
-    targetEndpoint = env.AUTORAG_ENDPOINT;
-    targetToken = env.AUTORAG_API_TOKEN;
-    selectedRag = 'Podcast';
-  } else {
-    // 2. 如果沒有 type，根據 query 內容判斷
-    console.log("[AI Search Func] No valid type provided, checking query content...");
-    if (containsKeyword(query, PODCAST_KEYWORDS)) {
+  const lowerQuery = query.toLowerCase(); // 先轉換一次，避免重複轉換
+
+  // 1. 優先檢查探店關鍵字 (包含 "關生" 和 "探店")
+  if (containsKeyword(lowerQuery, TRAVEL_KEYWORDS)) {
+      console.log("[AI Search Func] Query contains travel keywords (關生/探店 prioritized). Selecting Travel RAG.");
+      targetEndpoint = env.AUTORAG_TRAVEL_ENDPOINT;
+      targetToken = env.AUTORAG_TRAVEL_TOKEN;
+      selectedRag = 'Travel (Query Keyword)';
+  }
+  // 2. 如果沒有探店關鍵字，再檢查節目關鍵字
+  else if (containsKeyword(lowerQuery, PODCAST_KEYWORDS)) {
       console.log("[AI Search Func] Query contains podcast keywords. Selecting Podcast RAG.");
       targetEndpoint = env.AUTORAG_ENDPOINT;
       targetToken = env.AUTORAG_API_TOKEN;
       selectedRag = 'Podcast (Query Keyword)';
-    } else if (containsKeyword(query, TRAVEL_KEYWORDS)) {
-      console.log("[AI Search Func] Query contains travel keywords. Selecting Travel RAG.");
-      targetEndpoint = env.AUTORAG_TRAVEL_ENDPOINT;
-      targetToken = env.AUTORAG_TRAVEL_TOKEN;
-      selectedRag = 'Travel (Query Keyword)';
-    } else {
-      // 3. 預設使用 Podcast RAG
-      console.log("[AI Search Func] No keywords matched. Defaulting to Podcast RAG.");
+  }
+  // 3. 如果都沒有，預設使用 Podcast RAG
+  else {
+      console.log("[AI Search Func] No specific keywords matched. Defaulting to Podcast RAG.");
       targetEndpoint = env.AUTORAG_ENDPOINT;
       targetToken = env.AUTORAG_API_TOKEN;
       selectedRag = 'Podcast (Default)';
-    }
   }
 
   // --- 檢查環境變數是否存在 ---

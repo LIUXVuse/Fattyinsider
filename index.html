@@ -707,8 +707,8 @@
             const selectedModeInput = document.querySelector('input[name="chatMode"]:checked');
             const currentMode = selectedModeInput ? selectedModeInput.value : 'autorag';
 
-            // --- 判斷是否為簡單資料查詢 ---
-            const simpleQueryRegex = /探店|按摩|哪一集|節目|老雞|依依|S3EP\d+/i;
+            // --- 判斷是否為簡單資料查詢 (加入關生、探店) ---
+            const simpleQueryRegex = /關生|探店|按摩|哪一集|節目|老雞|依依|S3EP\d+/i;
             const isSimpleDataQuery = simpleQueryRegex.test(messageText);
             console.log(`[sendMessage] Query: "${messageText}", isSimpleDataQuery: ${isSimpleDataQuery}, currentMode: ${currentMode}`);
 
