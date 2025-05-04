@@ -234,6 +234,101 @@ async function callDeepseek(apiKey, messages, autoRagAnswer = null, searchResult
      }
 }
 
+/**
+ * Handles direct RAG search requests to /functions/ai-search.
+ */
+async function handleAiSearchRequest(request, env) {
+    console.log("[Worker AI Search] Entering handleAiSearchRequest...");
+    let requestBody;
+    try {
+        requestBody = await request.json();
+    } catch (e) {
+        console.error("[Worker AI Search] Invalid JSON body:", e);
+        return new Response(JSON.stringify({ error: "无效的 JSON 请求体" }), { status: 400, headers: { "Content-Type": "application/json" } });
+    }
+
+    // 檢查是否有來自前端的 useTravelRag 標記
+    const { query, useTravelRag } = requestBody;
+
+    if (!query || typeof query !== 'string' /*|| query.trim() === ''*/) {
+         // Allow empty query if prefix was used, handle potential downstream errors
+        if (query !== "" || !useTravelRag) { // Only error if query is not empty string OR prefix wasn't used
+            console.error("[Worker AI Search] Missing or invalid 'query' in request.");
+            return new Response(JSON.stringify({ error: "请求体中缺少有效的 'query' 字段" }), { status: 400, headers: { "Content-Type": "application/json" } });
+        }
+         console.warn("[Worker AI Search] Received empty query, likely due to prefix removal. Proceeding...");
+    }
+
+    console.log(`[Worker AI Search] Received query: "${query}", useTravelRag flag: ${useTravelRag}`);
+
+    // --- Decide RAG instance based on flag or query content ---
+    let targetEndpoint = '';
+    let targetToken = '';
+    let selectedRag = '';
+    const lowerQuery = query.toLowerCase();
+
+    // 1. 檢查是否有強制使用 Travel RAG 的標記
+    if (useTravelRag === true) {
+        console.log("[Worker AI Search] Selecting Travel RAG based on useTravelRag flag from frontend.");
+        targetEndpoint = env.AUTORAG_TRAVEL_ENDPOINT;
+        targetToken = env.AUTORAG_TRAVEL_TOKEN;
+        selectedRag = 'Travel (Flag Triggered)';
+    }
+    // 2. 如果沒有標記，執行關鍵字判斷邏輯
+    else if (containsKeyword(lowerQuery, TRAVEL_KEYWORDS)) {
+        console.log("[Worker AI Search] Query contains travel keywords. Selecting Travel RAG.");
+        targetEndpoint = env.AUTORAG_TRAVEL_ENDPOINT;
+        targetToken = env.AUTORAG_TRAVEL_TOKEN;
+        selectedRag = 'Travel (Query Keyword)';
+    } else if (containsKeyword(lowerQuery, PODCAST_KEYWORDS)) {
+        console.log("[Worker AI Search] Query contains podcast keywords. Selecting Podcast RAG.");
+        targetEndpoint = env.AUTORAG_ENDPOINT;
+        targetToken = env.AUTORAG_API_TOKEN;
+        selectedRag = 'Podcast (Query Keyword)';
+    } else {
+        console.log("[Worker AI Search] No flag and no specific keywords matched. Defaulting to Podcast RAG.");
+        targetEndpoint = env.AUTORAG_ENDPOINT;
+        targetToken = env.AUTORAG_API_TOKEN;
+        selectedRag = 'Podcast (Default)';
+    }
+
+    // Check environment variables
+    if (!targetEndpoint || !targetToken) {
+        // ... (Error handling for missing env vars - same as before) ...
+         console.error(`[Worker AI Search] Missing environment variables for selected RAG: ${selectedRag}. Endpoint found: ${!!targetEndpoint}, Token found: ${!!targetToken}`);
+         let missingVars = [];
+         if (!targetEndpoint) missingVars.push(selectedRag.includes('Travel') ? 'AUTORAG_TRAVEL_ENDPOINT' : 'AUTORAG_ENDPOINT');
+         if (!targetToken) missingVars.push(selectedRag.includes('Travel') ? 'AUTORAG_TRAVEL_TOKEN' : 'AUTORAG_API_TOKEN');
+         return new Response(JSON.stringify({ error: `後端 ${selectedRag} AutoRAG 設定未完成`, details: `缺少環境變數: ${missingVars.join(', ')}` }), { status: 500, headers: { "Content-Type": "application/json" } });
+    }
+
+    console.log(`[Worker AI Search] Using ${selectedRag} RAG. Endpoint: ${targetEndpoint.substring(0, 60)}... Token: [REDACTED]`);
+
+    // --- Call the selected AutoRAG API --- 
+    try {
+        // Use the existing callAutoRag function, which returns the answer string or null
+        const autoRagAnswer = await callAutoRag(targetEndpoint, targetToken, query);
+
+        if (autoRagAnswer === null) {
+             console.error("[Worker AI Search] AutoRAG failed to provide an answer.");
+             // Return a structured error, similar to how /api/chat might handle it
+             return new Response(JSON.stringify({ error: "無法從 AutoRAG 獲取回答", detail: "Response structure might be incorrect or API failed." }), { status: 500, headers: { 'Content-Type': 'application/json' }});
+        }
+
+        // Format the successful response similar to /api/chat's final step
+        const formattedResponse = formatResponse(autoRagAnswer);
+        console.log("[Worker AI Search DEBUG] Sending formatted AutoRAG response to client.");
+        const headers = new Headers({ 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+        return new Response(JSON.stringify(formattedResponse), {
+            status: 200,
+            headers: headers
+        });
+
+    } catch (e) {
+         console.error("[Worker AI Search] Error calling AutoRAG:", e);
+         return new Response(JSON.stringify({ error: "呼叫 AutoRAG 時發生內部錯誤", details: e.message || "Unknown fetch error" }), { status: 500, headers: { "Content-Type": "application/json" } });
+    }
+}
 
 /**
  * Handles chat requests, routing based on mode.
@@ -384,9 +479,27 @@ export default {
 
     console.log(`[Worker Entry] Request: ${method} ${pathname}`);
 
-    // API route
+    // --- New Route for direct AI Search --- 
+    if (pathname === "/functions/ai-search" && method === "POST") {
+        return handleAiSearchRequest(request, env);
+    }
+
+    // --- Existing API route for chat --- 
     if (pathname === "/api/chat" && method === "POST") {
         return handleChatRequest(request, env);
+    }
+
+    // --- CORS Preflight for both routes --- 
+    if (method === "OPTIONS" && (pathname === "/api/chat" || pathname === "/functions/ai-search")) {
+        return new Response(null, {
+            status: 204,
+            headers: {
+              'Access-Control-Allow-Origin': '*',
+              'Access-Control-Allow-Methods': 'POST, OPTIONS',
+              'Access-Control-Allow-Headers': 'Content-Type',
+              'Access-Control-Max-Age': '86400',
+            },
+          });
     }
 
     // Static assets route

@@ -703,35 +703,50 @@
             // 創建一個 AI 消息佔位符，稍後填充
             const aiMessageDiv = appendMessage('ai', '', false, true); // isTyping = true
 
-            // --- 修正：先獲取當前選擇的模式 ---
-            const selectedModeInput = document.querySelector('input[name="chatMode"]:checked');
-            const currentMode = selectedModeInput ? selectedModeInput.value : 'autorag';
+            // --- 暗語檢查 --- 
+            const travelPrefix = "關生探店 "; // 注意空格
+            let actualQuery = messageText;
+            let useTravelRagFlag = false;
+            let routeReason = "";
 
-            // --- 判斷是否為簡單資料查詢 (加入關生、探店) ---
-            const simpleQueryRegex = /關生|探店|按摩|哪一集|節目|老雞|依依|S3EP\d+/i;
-            const isSimpleDataQuery = simpleQueryRegex.test(messageText);
-            console.log(`[sendMessage] Query: "${messageText}", isSimpleDataQuery: ${isSimpleDataQuery}, currentMode: ${currentMode}`);
-
-            let apiPath = '';
-            let requestPayload = {};
-
-            // --- 修正：只有在 RAG 模式下的簡單查詢才走 ai-search ---
-            if (isSimpleDataQuery && currentMode === 'autorag') {
-                apiPath = '/functions/ai-search';
-                requestPayload = { query: messageText };
-                console.log(`[sendMessage] Routing to: ${apiPath} (Simple Query in RAG mode)`);
+            if (messageText.startsWith(travelPrefix)) {
+                 useTravelRagFlag = true;
+                 actualQuery = messageText.substring(travelPrefix.length).trim();
+                 // 如果去除前綴後查詢為空，則可能需要處理或提醒用戶
+                 if (!actualQuery) {
+                      console.warn("[sendMessage] Query is empty after removing prefix.");
+                      // 可以選擇不發送，或者發送一個提示性的查詢，或者就發送空查詢讓後端處理
+                      // 這裡暫定仍然發送，讓後端處理空查詢可能返回的錯誤
+                 }
+                 apiPath = '/functions/ai-search';
+                 requestPayload = { query: actualQuery, useTravelRag: true };
+                 routeReason = "Prefix Trigger";
+                 console.log(`[sendMessage] Routing to: ${apiPath} (Reason: ${routeReason}, Query after prefix: "${actualQuery}")`);
             } else {
-                // --- 其他情況 (複雜查詢 或 非 RAG 模式) 都走 /api/chat ---
-                apiPath = '/api/chat';
-                const historyToSend = messageHistory.filter(msg => msg.role !== 'system');
-                const payloadMessages = historyToSend; // 只傳送對話歷史
-                requestPayload = {
-                    messages: payloadMessages,
-                    mode: currentMode // 傳遞實際選擇的模式
-                };
-                console.log(`[sendMessage] Routing to: ${apiPath} (Complex Query or Non-RAG mode: ${currentMode})`);
-            }
+                // --- 如果沒有暗語，執行之前的判斷邏輯 --- 
+                const selectedModeInput = document.querySelector('input[name="chatMode"]:checked');
+                const currentMode = selectedModeInput ? selectedModeInput.value : 'autorag';
+                const simpleQueryRegex = /關生|探店|按摩|哪一集|節目|老雞|依依|S3EP\d+/i;
+                const isSimpleDataQuery = simpleQueryRegex.test(messageText); // Test original message
+                console.log(`[sendMessage] Query: "${messageText}", isSimpleDataQuery: ${isSimpleDataQuery}, currentMode: ${currentMode}`);
 
+                if (isSimpleDataQuery && currentMode === 'autorag') {
+                    apiPath = '/functions/ai-search';
+                    requestPayload = { query: messageText }; // Send original query
+                    routeReason = "Simple Query in RAG mode";
+                    console.log(`[sendMessage] Routing to: ${apiPath} (Reason: ${routeReason})`);
+                } else {
+                    apiPath = '/api/chat';
+                    const historyToSend = messageHistory.filter(msg => msg.role !== 'system');
+                    const payloadMessages = historyToSend;
+                    requestPayload = {
+                        messages: payloadMessages,
+                        mode: currentMode
+                    };
+                    routeReason = `Complex Query or Non-RAG mode: ${currentMode}`;
+                    console.log(`[sendMessage] Routing to: ${apiPath} (Reason: ${routeReason})`);
+                }
+            }
 
             try {
                 // --- 使用動態決定的 apiPath 和 requestPayload ---
