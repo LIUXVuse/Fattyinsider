@@ -1,5 +1,15 @@
 // _worker.js - Modified for AutoRAG (ai-search), Serper Web Search, and Hybrid Deepseek Mode with Error Handling
 
+// --- Helper functions and constants --- 
+const PODCAST_KEYWORDS = ['s3ep', '哪一集', '老雞', '依依', '節目', '回聽'];
+const TRAVEL_KEYWORDS = ['關生', '探店', 'gogobar', '包夜', '芭提雅'];
+
+// *** इंश्योर करें कि यह फ़ंक्शन निश्चित रूप से यहाँ परिभाषित है ***
+function containsKeyword(query, keywords) {
+  const lowerQuery = query.toLowerCase();
+  return keywords.some(keyword => lowerQuery.includes(keyword));
+}
+
 // Helper function to format response for frontend
 function formatResponse(content, role = "assistant", finish_reason = "stop") {
   // Basic sanitization or validation could be added here if needed
